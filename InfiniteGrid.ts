@@ -1,4 +1,4 @@
-import { Color, Component, Enum, Graphics, Mask, Node, ScrollView, Size, UITransform, Vec2, _decorator, v2 } from "cc";
+import { Color, Component, Enum, Graphics, Mask, Node, NodePool, ScrollView, Size, UITransform, Vec2, _decorator, v2 } from "cc";
 import { InfiniteCell } from "./InfiniteCell";
 const { ccclass, property } = _decorator;
 
@@ -30,10 +30,21 @@ export class InfiniteGrid extends Component {
     })
     public direction = EDirection.VERTICAL;
 
+    @property({ tooltip: "" })
+    public paddingTop = 0;
+
+    @property({ tooltip: "" })
+    public paddingBottom = 0;
+
     @property({
-        tooltip: "cell 之间的像素间隔，最开始和最后面不会添加"
+        tooltip: ""
     })
-    public spacing = 0;
+    public spacingX = 0;
+
+    @property({
+        tooltip: ""
+    })
+    public spacingY = 0;
 
     @property({
         tooltip: "(Vertical)row数量, (Horizontal)column数量"
@@ -74,6 +85,8 @@ export class InfiniteGrid extends Component {
     private m_gridCellOffset: { [row: number]: Vec2 } = {};
     private m_curOffsetRange: number[] = [];
     private m_activeCellViews: InfiniteCell[] = [];
+
+    private m_cellPools: { [name: string]: NodePool } = {};
 
     public onLoad() {
         let scrollView = this.node.getComponent(ScrollView);
@@ -141,34 +154,30 @@ export class InfiniteGrid extends Component {
         let curRowSizeArr = [];
 
         for (let i = 0; i < dataLen; i++) {
+            if (!i) totalHeight += this.paddingTop;
+            else if (i == dataLen - 1) totalHeight += this.paddingBottom;
+
             let row = this._getRow(i);
             let col = this._getCol(i);
 
             let size = this._delegate.GetCellSize(i);
             curRowSizeArr.push(size);
 
+            if (!col) {
+                this.m_gridCellOffset[row] = v2(0, totalHeight);
+                curRowSizeArr.sort((a, b) => b.height - a.height);
+                totalHeight += curRowSizeArr[0].height + this.spacingY;
+                curRowSizeArr = [];
+            }
+
             if (!this.m_gridCellSize[row]) {
                 this.m_gridCellSize[row] = {};
             }
             this.m_gridCellSize[row][col] = size;
-
-            if (!col) {
-                this.m_gridCellOffset[row] = v2(0, totalHeight);
-                curRowSizeArr.sort((a, b) => b.height - a.height);
-                totalHeight += curRowSizeArr[0].height;
-                curRowSizeArr = [];
-            }
         }
 
         const uiTrans = this._content.getComponent(UITransform);
         uiTrans.setContentSize(uiTrans.width, totalHeight);
-
-        const maxOffset = this._scrollView.getMaxScrollOffset();
-        for (let row = this._getRow(dataLen - 1); row >= 0; row --) {
-            let offset = this.m_gridCellOffset[row];
-            if (offset.y <= maxOffset.y) break;
-            this.m_gridCellOffset[row] = maxOffset;
-        }
 
         this._refreshActiveCell();
     }
@@ -176,18 +185,20 @@ export class InfiniteGrid extends Component {
     private _removeCellView(dataIndex: number, cell?: InfiniteCell) {
         cell = cell || this._getActiveCellView(dataIndex);
         if (!cell) return;
+        cell.dataIndex = -1;
 
-        // TODO: recycle cell
+        const cellPool = this._getCellPool(cell.cellIdentifier);
+        cellPool.put(cell.node);
         cell.node.removeFromParent();
-
-        this.m_activeCellViews = this.m_activeCellViews.filter((c) => c !== cell);
     }
 
     private _addCellView(dataIndex: number) {
-        const cell = this._delegate.GetCellView(dataIndex);
+        const id = this._delegate.GetCellIdentifer(dataIndex);
+        const cellPool = this._getCellPool(id);
+        const node = cellPool && cellPool.get();
+        const cell = node && node.getComponent('InfiniteCell') as InfiniteCell || this._delegate.GetCellView(dataIndex);
         if (!cell) return;
 
-        const id = this._delegate.GetCellIdentifer(dataIndex);
         cell.cellIdentifier = id;
         cell.dataIndex = dataIndex;
 
@@ -196,7 +207,6 @@ export class InfiniteGrid extends Component {
         cell.node.setPosition(pos.x, pos.y);
 
         this.m_activeCellViews.push(cell);
-
         this._updateCellView(dataIndex, cell);
     }
 
@@ -210,15 +220,22 @@ export class InfiniteGrid extends Component {
 
         this.m_curOffsetRange = range;
 
-        this.m_activeCellViews.forEach((cell) => {
+        this.m_activeCellViews.forEach((cell, index) => {
             let dataIndex = cell.dataIndex;
             if (dataIndex < 0) return;
 
             let row = this._getRow(dataIndex);
-            if (row < this.m_curOffsetRange[0] || row > this.m_curOffsetRange[1]) {
+            let isInRange = row >= this.m_curOffsetRange[0] && row <= this.m_curOffsetRange[1];
+
+            if (isInRange) {
+                this._updateCellView(dataIndex, cell);
+            } else {
                 this._removeCellView(dataIndex, cell);
+                this.m_activeCellViews[index] = undefined;
             }
-        })
+        });
+
+        this.m_activeCellViews = this.m_activeCellViews.filter((cell) => cell !== undefined);
 
         for (let row = this.m_curOffsetRange[0]; row <= this.m_curOffsetRange[1]; row ++) {
             for (let col = 0; col < this.cellNum; col ++) {
@@ -228,8 +245,6 @@ export class InfiniteGrid extends Component {
                 let cell = this._getActiveCellView(dataIndex);
                 if (!cell) {
                     this._addCellView(dataIndex);
-                } else {
-                    this._updateCellView(dataIndex, cell);
                 }
             }
         }
@@ -239,19 +254,31 @@ export class InfiniteGrid extends Component {
         return this.m_activeCellViews.find((cell) => cell.dataIndex === dataIndex);
     }
 
+    private _getCellPool(cellIdentifier: string): NodePool {
+        let cellPool = this.m_cellPools[cellIdentifier];
+        if (!cellPool) {
+            cellPool = new NodePool();
+            this.m_cellPools[cellIdentifier] = cellPool;
+        }
+        return cellPool;
+    }
+
     private _getCellPosition(dataIndex: number): {x: number, y: number} {
         const row = this._getRow(dataIndex), col = this._getCol(dataIndex);
         const size = this.m_gridCellSize[row][col];
-        return { x: size.width / 2 + col * size.width, y: - size.height / 2 - row * size.height };
+        let posX = 0;
+        for (let i = 0; i <= col; i ++) {
+            posX += this.m_gridCellSize[row][i].width;
+        }
+        posX = posX + col * this.spacingX - size.width / 2;
+        return { x: posX, y: - this.m_gridCellOffset[row].y - size.height / 2 };
     }
 
     private _getScrowOffsetRowRange(offset?: Vec2): number[] {
         const curOffset = offset || this._scrollView.getScrollOffset();
         const viewSize = this._scrollView.view.contentSize;
-        const offsetBound = this._getScrollOffsetBound();
-
-        let offsetBottom = curOffset.y + viewSize.height;
-        offsetBottom = offsetBottom > offsetBound.y ? offsetBound.y : offsetBottom;
+        const offsetBottom = curOffset.y + viewSize.height;
+        curOffset.y = Math.max(curOffset.y, 0);
 
         let rowTop = -1;
         let rowBottom = -1;
@@ -261,8 +288,12 @@ export class InfiniteGrid extends Component {
             let offset = this.m_gridCellOffset[row];
             if (offset.y > offsetBottom) break;
 
-            rowTop = offset.y <= curOffset.y ? row : rowTop;
-            rowBottom = rowTop >= 0 ? row : rowBottom;
+            let nextOffset = this.m_gridCellOffset[row + 1] ? this.m_gridCellOffset[row + 1].y : viewSize.height;
+            if (rowTop == -1 && nextOffset >= curOffset.y) {
+                rowTop = row;
+            }
+
+            rowBottom = row;
         }
 
         return [rowTop, rowBottom];
