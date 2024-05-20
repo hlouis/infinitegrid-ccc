@@ -1,4 +1,4 @@
-import { Color, Component, Enum, Graphics, Mask, Node, NodePool, ScrollView, Size, UITransform, Vec2, _decorator, v2 } from "cc";
+import { Color, Component, ConfigurableConstraint, Graphics, HeightField, Mask, Node, NodePool, ScrollView, Size, UITransform, Vec2, _decorator, ccenum, v2 } from "cc";
 import { InfiniteCell } from "./InfiniteCell";
 const { ccclass, property } = _decorator;
 
@@ -6,6 +6,7 @@ enum EDirection {
     VERTICAL = 1,
     HORIZONTAL,
 }
+ccenum(EDirection);
 
 export interface IFDataSource {
 
@@ -24,34 +25,116 @@ export interface IFDataSource {
 @ccclass('InfiniteGrid')
 export class InfiniteGrid extends Component {
 
+    /**
+     * @en
+     *
+     * @zh
+     *
+     */
     @property({
-        type: Enum(EDirection),
-        tooltip: "List 滚动的方向，可以选择垂直或者水平"
+        type: EDirection,
+        tooltip: ""
     })
     public direction = EDirection.VERTICAL;
 
-    @property({ tooltip: "" })
-    public paddingTop = 0;
+    /**
+     * @en
+     *
+     * @zh
+     *
+     */
+    @property({
+        visible: function (this: InfiniteGrid): boolean {
+            return this.direction === EDirection.VERTICAL;
+        },
+        tooltip: ""
+    })
+    public paddingTop: number = 0;
 
-    @property({ tooltip: "" })
-    public paddingBottom = 0;
+    /**
+     * @en
+     *
+     * @zh
+     *
+     */
+    @property({
+        visible: function (this: InfiniteGrid): boolean {
+            return this.direction === EDirection.VERTICAL;
+        },
+        tooltip: ""
+    })
+    public paddingBottom: number = 0;
 
+    /**
+     * @en
+     *
+     * @zh
+     *
+     */
+    @property({
+        visible: function (this: InfiniteGrid): boolean {
+            return this.direction === EDirection.HORIZONTAL;
+        },
+        tooltip: ""
+    })
+    public paddingLeft: number = 0;
+
+    /**
+     * @en
+     *
+     * @zh
+     *
+     */
+    @property({
+        visible: function (this: InfiniteGrid): boolean {
+            return this.direction === EDirection.HORIZONTAL;
+        },
+        tooltip: ""
+    })
+    public paddingRight: number = 0;
+
+    /**
+     * @en
+     *
+     * @zh
+     *
+     */
     @property({
         tooltip: ""
     })
-    public spacingX = 0;
+    public spacingX: number = 0;
 
+    /**
+     * @en
+     *
+     * @zh
+     *
+     */
     @property({
         tooltip: ""
     })
-    public spacingY = 0;
+    public spacingY: number = 0;
 
+    /**
+     * @en
+     *
+     * @zh
+     *
+     */
     @property({
-        tooltip: "(Vertical)row数量, (Horizontal)column数量"
+        tooltip: ""
     })
-    public cellNum = 1;
+    public cellNum: number = 1;
 
-    @property({ tooltip: "是否允许滚动超过边界 " })
+    /**
+     * @en
+     *
+     * @zh
+     *
+     */
+    @property({
+        tooltip: ""
+    })
     public elastic: boolean = true;
 
     public Init(p: IFDataSource) {
@@ -80,6 +163,9 @@ export class InfiniteGrid extends Component {
     private _scrollView: ScrollView | undefined;
     private _content: Node | undefined;
     private _delegate: IFDataSource | undefined;
+
+    private m_debug: boolean = true;
+    private m_inited: boolean = false;
 
     private m_gridCellSize: { [row: number]: { [col: number]: Size } } = {};
     private m_gridCellOffset: { [row: number]: Vec2 } = {};
@@ -112,17 +198,32 @@ export class InfiniteGrid extends Component {
 
         this._scrollView.content = this._content;
 
+        this.m_inited = true;
         if (this._delegate) {
             this._load();
         }
     }
 
-    public onDestroy() {
-        this.node.targetOff(this);
+    public onEnable() {
+        this._addEventListeners();
     }
 
-    public onEnable() {
-        this.node.on("scrolling", this._onScrolling, this);
+    public onDestroy() {
+        this._removeEventListeners();
+    }
+
+    public update() {
+        if (this.m_debug) {
+            this._enableContentGraphics();
+        }
+    }
+
+    private _addEventListeners() {
+        this.node.on(ScrollView.EventType.SCROLLING, this._onScrolling, this);
+    }
+
+    private _removeEventListeners() {
+        this.node.off(ScrollView.EventType.SCROLLING, this._onScrolling, this);
     }
 
     private _onScrolling() {
@@ -144,40 +245,68 @@ export class InfiniteGrid extends Component {
 
     private _init(p: IFDataSource) {
         this._delegate = p;
+        if (this.m_inited) {
+            this._load();
+        }
     }
 
     private _load() {
         const dataLen = this._delegate && this._delegate.GetCellNumber();
         if (!dataLen) return;
 
+        let totalWidth = 0;
         let totalHeight = 0;
-        let curRowSizeArr = [];
+        let curSizeArr = [];
 
         for (let i = 0; i < dataLen; i++) {
-            if (!i) totalHeight += this.paddingTop;
-            else if (i == dataLen - 1) totalHeight += this.paddingBottom;
+            if (!i) {
+                this.direction === EDirection.VERTICAL && (totalHeight += this.paddingTop);
+                this.direction === EDirection.HORIZONTAL && (totalWidth += this.paddingLeft);
+            }
+            else if (i == dataLen - 1) {
+                this.direction === EDirection.VERTICAL && (totalHeight += this.paddingBottom);
+                this.direction === EDirection.HORIZONTAL && (totalWidth += this.paddingRight);
+            }
 
             let row = this._getRow(i);
             let col = this._getCol(i);
 
             let size = this._delegate.GetCellSize(i);
-            curRowSizeArr.push(size);
+            curSizeArr.push(size);
 
-            if (!col) {
+            if (this.direction === EDirection.VERTICAL && !col) {
                 this.m_gridCellOffset[row] = v2(0, totalHeight);
-                curRowSizeArr.sort((a, b) => b.height - a.height);
-                totalHeight += curRowSizeArr[0].height + this.spacingY;
-                curRowSizeArr = [];
+                curSizeArr.sort((a, b) => b.height - a.height);
+                totalHeight += curSizeArr[0].height + this.spacingY;
+                curSizeArr = [];
             }
 
-            if (!this.m_gridCellSize[row]) {
-                this.m_gridCellSize[row] = {};
+            if (this.direction === EDirection.HORIZONTAL && !row) {
+                this.m_gridCellOffset[col] = v2(totalWidth, 0);
+                curSizeArr.sort((a, b) => b.width - a.width);
+                totalWidth += curSizeArr[0].width + this.spacingX;
+                curSizeArr = [];
             }
-            this.m_gridCellSize[row][col] = size;
+
+            if (this.direction === EDirection.VERTICAL) {
+                if (!this.m_gridCellSize[row]) {
+                    this.m_gridCellSize[row] = {};
+                }
+                this.m_gridCellSize[row][col] = size;
+            }
+            else if (this.direction === EDirection.HORIZONTAL) {
+                if (!this.m_gridCellSize[col]) {
+                    this.m_gridCellSize[col] = {};
+                }
+                this.m_gridCellSize[col][row] = size;
+            }
         }
 
         const uiTrans = this._content.getComponent(UITransform);
-        uiTrans.setContentSize(uiTrans.width, totalHeight);
+        uiTrans.setContentSize(
+            this.direction === EDirection.VERTICAL ? uiTrans.width : totalWidth,
+            this.direction === EDirection.VERTICAL ? totalHeight : uiTrans.height
+        );
 
         this._refreshActiveCell();
     }
@@ -215,7 +344,7 @@ export class InfiniteGrid extends Component {
     }
 
     private _refreshActiveCell() {
-        const range = this._getScrowOffsetRowRange();
+        const range = this._getScrowOffsetRange();
         if (!this._isRangeValid(range) || this._isRangeEqual(range, this.m_curOffsetRange)) return;
 
         this.m_curOffsetRange = range;
@@ -224,12 +353,13 @@ export class InfiniteGrid extends Component {
             let dataIndex = cell.dataIndex;
             if (dataIndex < 0) return;
 
-            let row = this._getRow(dataIndex);
-            let isInRange = row >= this.m_curOffsetRange[0] && row <= this.m_curOffsetRange[1];
+            let rc = this.direction === EDirection.VERTICAL ? this._getRow(dataIndex) : this._getCol(dataIndex);
+            let isInRange = rc >= this.m_curOffsetRange[0] && rc <= this.m_curOffsetRange[1];
 
             if (isInRange) {
                 this._updateCellView(dataIndex, cell);
-            } else {
+            }
+            else {
                 this._removeCellView(dataIndex, cell);
                 this.m_activeCellViews[index] = undefined;
             }
@@ -237,9 +367,9 @@ export class InfiniteGrid extends Component {
 
         this.m_activeCellViews = this.m_activeCellViews.filter((cell) => cell !== undefined);
 
-        for (let row = this.m_curOffsetRange[0]; row <= this.m_curOffsetRange[1]; row ++) {
-            for (let col = 0; col < this.cellNum; col ++) {
-                let dataIndex = this._getDataIndexByRowCol(row, col);
+        for (let i = this.m_curOffsetRange[0]; i <= this.m_curOffsetRange[1]; i ++) {
+            for (let j = 0; j < this.cellNum; j ++) {
+                let dataIndex = this.direction === EDirection.VERTICAL ? this._getDataIndexByRowCol(i, j) : this._getDataIndexByRowCol(j, i);
                 if (dataIndex === undefined) break;
 
                 let cell = this._getActiveCellView(dataIndex);
@@ -265,57 +395,92 @@ export class InfiniteGrid extends Component {
 
     private _getCellPosition(dataIndex: number): {x: number, y: number} {
         const row = this._getRow(dataIndex), col = this._getCol(dataIndex);
-        const size = this.m_gridCellSize[row][col];
-        let posX = 0;
-        for (let i = 0; i <= col; i ++) {
-            posX += this.m_gridCellSize[row][i].width;
+        if (this.direction === EDirection.VERTICAL) {
+            const size = this.m_gridCellSize[row][col];
+            let posX = 0;
+            for (let i = 0; i <= col; i ++) {
+                posX += this.m_gridCellSize[row][i].width;
+            }
+            posX = posX + col * this.spacingX - size.width / 2;
+            return { x: posX, y: - this.m_gridCellOffset[row].y - size.height / 2 };
         }
-        posX = posX + col * this.spacingX - size.width / 2;
-        return { x: posX, y: - this.m_gridCellOffset[row].y - size.height / 2 };
+        else if (this.direction === EDirection.HORIZONTAL) {
+            const size = this.m_gridCellSize[col][row];
+            let posY = 0;
+            for (let i = 0; i <= row; i ++) {
+                posY -= this.m_gridCellSize[col][i].height;
+            }
+            posY = posY - row * this.spacingY + size.height / 2;
+            return { x: this.m_gridCellOffset[col].x + size.width / 2, y: posY}
+        }
     }
 
-    private _getScrowOffsetRowRange(offset?: Vec2): number[] {
+    private _getScrowOffsetRange(offset?: Vec2): number[] {
         const curOffset = offset || this._scrollView.getScrollOffset();
         const viewSize = this._scrollView.view.contentSize;
-        const offsetBottom = curOffset.y + viewSize.height;
-        curOffset.y = Math.max(curOffset.y, 0);
+        const contentSize = this._scrollView.content.getComponent(UITransform).contentSize;
 
-        let rowTop = -1;
-        let rowBottom = -1;
+        if (this.direction === EDirection.VERTICAL) {
+            const offsetBottom = curOffset.y + viewSize.height;
+            let rowTop = -1;
+            let rowBottom = -1;
 
-        for (let k in this.m_gridCellOffset) {
-            let row = Number(k);
-            let offset = this.m_gridCellOffset[row];
-            if (offset.y > offsetBottom) break;
+            for (let k in this.m_gridCellOffset) {
+                let row = Number(k);
+                let offset = this.m_gridCellOffset[row];
+                if (offset.y > offsetBottom) break;
 
-            let nextOffset = this.m_gridCellOffset[row + 1] ? this.m_gridCellOffset[row + 1].y : viewSize.height;
-            if (rowTop == -1 && nextOffset >= curOffset.y) {
-                rowTop = row;
+                let nextOffsetY = this.m_gridCellOffset[row + 1] ? this.m_gridCellOffset[row + 1].y : contentSize.height;
+                if (rowTop == -1 && nextOffsetY >= curOffset.y) {
+                    rowTop = row;
+                }
+
+                if (rowTop > -1) {
+                    rowBottom = row;
+                }
             }
 
-            rowBottom = row;
+            return [rowTop, rowBottom];
         }
+        else if (this.direction === EDirection.HORIZONTAL) {
+            let isOutLeft = curOffset.x > 0;
+            curOffset.x = Math.abs(curOffset.x);
+            let offsetRight = isOutLeft ? (viewSize.width - curOffset.x) : (curOffset.x + viewSize.width);
+            curOffset.x = isOutLeft ? 0 : curOffset.x;
 
-        return [rowTop, rowBottom];
+            let colLeft = -1;
+            let colRight = -1;
+
+            for (let k in this.m_gridCellOffset) {
+                let col = Number(k);
+                let offset = this.m_gridCellOffset[col];
+                if (offset.x > offsetRight) break;
+
+                let nextOffsetX = this.m_gridCellOffset[col + 1] ? this.m_gridCellOffset[col + 1].x : contentSize.width;
+                if (colLeft == -1 && nextOffsetX >= curOffset.x) {
+                    colLeft = col;
+                }
+
+                if (colLeft > -1) {
+                    colRight = col;
+                }
+            }
+
+            return [colLeft, colRight]
+        }
     }
 
     private _getRow(dataIndex: number): number {
-        return Math.floor(dataIndex / this.cellNum);
+        return this.direction === EDirection.VERTICAL ? Math.floor(dataIndex / this.cellNum) : dataIndex % this.cellNum;
     }
 
     private _getCol(dataIndex: number): number {
-        return dataIndex % this.cellNum;
+        return this.direction === EDirection.VERTICAL ? dataIndex % this.cellNum : Math.floor(dataIndex / this.cellNum);
     }
 
     private _getDataIndexByRowCol(row: number, col: number): number | undefined {
-        const dataIndex = row * this.cellNum + col;
+        const dataIndex = this.direction === EDirection.VERTICAL ? row * this.cellNum + col : col * this.cellNum + row;
         return dataIndex < this._delegate.GetCellNumber() ? dataIndex : undefined;
-    }
-
-    private _getScrollOffsetBound(): Vec2 {
-        const offsetMax = this._scrollView.getMaxScrollOffset();
-        const viewSize = this._scrollView.view.contentSize;
-        return v2(0, offsetMax.y + viewSize.height);
     }
 
     private _isRangeValid(range: number[]): boolean {
