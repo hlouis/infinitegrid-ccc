@@ -1,6 +1,13 @@
 import { Component, _decorator } from "cc";
 const { ccclass, property } = _decorator;
 
+/**
+ * InfiniteCell base class
+ * Author: Louis Huang<https://github.com/hlouis>
+ * Date: 2018.10.03
+ *
+ * 每一个使用 InfiniteList 的用户，都需要实现这个 cell 的 interface
+ */
 @ccclass('InfiniteCell')
 export abstract class InfiniteCell extends Component {
 

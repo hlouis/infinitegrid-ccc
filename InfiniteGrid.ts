@@ -1,6 +1,15 @@
-import { Color, Component, ConfigurableConstraint, Graphics, HeightField, Mask, Node, NodePool, ScrollView, Size, UITransform, Vec2, _decorator, ccenum, v2 } from "cc";
+import { Color, Component, Graphics, Mask, Node, NodePool, ScrollView, Size, UITransform, Vec2, _decorator, ccenum, v2 } from "cc";
 import { InfiniteCell } from "./InfiniteCell";
 const { ccclass, property } = _decorator;
+
+
+/**
+ * InfiniteGrid
+ * Author: Louis Huang<https://github.com/hlouis>
+ * Contributor: Moon G<https://github.com/Moon1890>
+ * Date: 2024.05.20
+ * Based on Cocos Creator 3.8.2
+ */
 
 enum EDirection {
     VERTICAL = 1,
@@ -9,152 +18,235 @@ enum EDirection {
 ccenum(EDirection);
 
 export interface IFDataSource {
-
+    /**
+     * 返回这个 List 中数据的总数量
+     */
     GetCellNumber(): number;
 
+    /**
+     * 通过数据的下标返回这个 CellView 类型标志
+     * @param dataIndex: 当前 Cell 所渲染的数据在列表中的下标
+     */
     GetCellIdentifer(dataIndex: number): string;
 
+    /**
+     * 通过数据的下标返回这个 Cell 的尺寸
+     * @param dataIndex: 当前 Cell 所渲染的数据在列表中的下标
+     */
     GetCellSize(dataIndex: number): Size;
 
+    /**
+     * 获取一个 Cell 的 View 实例，记住这个控件必须已经挂在一个存在的 Node 上
+     * @param dataIndex: 当前 Cell 所渲染的数据在列表中的下标
+     * @param identifier: 这个 Cell 的表现类型标志
+     *
+     * 这个回调函数只会出现在已经没有可以重用的 Cell 时，List 才会向这个函数请求新的 Cell 实例
+     * 所有已经请求的 Cell 实例都会被存储并重复利用，直到这个list销毁时才释放。
+     */
     GetCellView(dataIndex: number, identifier?: string): InfiniteCell;
 
+    /**
+     * 根据一个 Cell 的下标获取一个 Cell 的数据，这个数据会作为 Cell 的 UpdateContent 的参数
+     * 这个回调是可选的，如果不提供的话，Cell 需要自己在 UpdateContent 中获取更新自己内容的数据
+     */
     GetCellData(dataIndex: number): any;
 }
-
 
 @ccclass('InfiniteGrid')
 export class InfiniteGrid extends Component {
 
     /**
      * @en
-     *
+     *  Direction of the grid scrolling
      * @zh
-     *
+     *  列表滚动的方向
      */
     @property({
         type: EDirection,
-        tooltip: ""
+        tooltip: "Scrolling direction of the grid \n 列表滚动的方向"
     })
     public direction = EDirection.VERTICAL;
 
     /**
-     * @en
-     *
-     * @zh
-     *
+     * @en Top padding for the grid
+     * @zh 网格的顶部内边距
      */
     @property({
         visible: function (this: InfiniteGrid): boolean {
             return this.direction === EDirection.VERTICAL;
         },
-        tooltip: ""
+        tooltip: "Top padding for the grid \n 网格的顶部内边距"
     })
     public paddingTop: number = 0;
 
     /**
-     * @en
-     *
-     * @zh
-     *
+     * @en Bottom padding for the grid
+     * @zh 网格的底部内边距
      */
     @property({
         visible: function (this: InfiniteGrid): boolean {
             return this.direction === EDirection.VERTICAL;
         },
-        tooltip: ""
+        tooltip: "Bottom padding for the grid \n 网格的底部内边距"
     })
     public paddingBottom: number = 0;
 
     /**
-     * @en
-     *
-     * @zh
-     *
+     * @en Left padding for the grid
+     * @zh 网格的左侧内边距
      */
     @property({
         visible: function (this: InfiniteGrid): boolean {
             return this.direction === EDirection.HORIZONTAL;
         },
-        tooltip: ""
+        tooltip: "Left padding for the grid \n 网格的左侧内边距"
     })
     public paddingLeft: number = 0;
 
     /**
-     * @en
-     *
-     * @zh
-     *
+     * @en Right padding for the grid
+     * @zh 网格的右侧内边距
      */
     @property({
         visible: function (this: InfiniteGrid): boolean {
             return this.direction === EDirection.HORIZONTAL;
         },
-        tooltip: ""
+        tooltip: "Right padding for the grid \n 网格的右侧内边距"
     })
     public paddingRight: number = 0;
 
     /**
-     * @en
-     *
-     * @zh
-     *
+     * @en Horizontal spacing between cells
+     * @zh 单元格之间的水平间距
      */
     @property({
-        tooltip: ""
+        tooltip: "Horizontal spacing between cells \n 单元格之间的水平间距"
     })
     public spacingX: number = 0;
 
     /**
-     * @en
-     *
-     * @zh
-     *
+     * @en Vertical spacing between cells
+     * @zh 单元格之间的垂直间距
      */
     @property({
-        tooltip: ""
+        tooltip: "Vertical spacing between cells \n 单元格之间的垂直间距"
     })
     public spacingY: number = 0;
 
     /**
-     * @en
-     *
-     * @zh
-     *
+     * @en Number of cells in a row (vertical) or column (horizontal)
+     * @zh 每行（垂直）或每列（水平）的单元格数量
      */
     @property({
-        tooltip: ""
+        tooltip: "Number of cells in a row (vertical) or column (horizontal) \n 每行（垂直）或每列（水平）的单元格数量"
     })
     public cellNum: number = 1;
 
     /**
-     * @en
-     *
-     * @zh
-     *
+     * @en Enable or disable elastic scrolling
+     * @zh 启用或禁用弹性滚动
      */
     @property({
-        tooltip: ""
+        tooltip: "Enable or disable elastic scrolling \n 启用或禁用弹性滚动"
     })
     public elastic: boolean = true;
 
+    /**
+     * @en Initialize the grid with the data source
+     * @zh 使用数据源初始化网格
+     */
     public Init(p: IFDataSource) {
         this._init(p);
     }
 
     /**
-     * Reload 整个 List，这时获取数据的回调函数会重新触发一遍，所有的 cell 也会更新一遍内容
+     * @en Reload the entire grid, optionally keeping the scroll position
+     * @zh 重新加载整个网格，可选择保留滚动位置
      */
     public Reload(keepPos: boolean = false) {
+        this._clear(keepPos);
         this._load();
     }
 
     /**
-     * 重新刷新当前显示 cell 的内容，不会重新载入整个列表
-     * 所以如果列表的数据数量发生了变化，或是想要修改 Cell 的尺寸，调用 Refresh 是没有用处的，请调用 Reload
+     * @en Refresh the currently visible cells
+     * @zh 重新刷新当前显示 cell 的内容，不会重新载入整个列表
      */
     public Refresh() {
+        this._refreshActiveCell(true);
     }
 
+    /**
+     * @en Set event handler for scroll began
+     * @zh 设置滚动开始事件处理函数
+     */
+    private _eventOnScrollBegan: Function | undefined;
+    public OnScrollBegan(event: Function) {
+        this._eventOnScrollBegan = event;
+    }
+
+    /**
+     * @en Set event handler for scroll ended
+     * @zh 设置滚动结束事件处理函数
+     */
+    private _eventOnScrollEnded: Function | undefined;
+    public OnScrollEnded(event: Function) {
+        this._eventOnScrollEnded = event;
+    }
+
+    /**
+     * @en Set event handler for scrolling
+     * @zh 设置滚动事件处理函数
+     */
+    private _eventOnScrolling: Function | undefined;
+    public OnScrolling(event: Function) {
+        this._eventOnScrolling = event;
+    }
+
+    /**
+     * @en Get the maximum scroll offset
+     * @zh 获取最大滚动偏移
+     */
+    public GetMaxScrollOffset(): Vec2 | undefined {
+        return this._scrollView && this._scrollView.getMaxScrollOffset();
+    }
+
+    /**
+     * @en Get the current scroll offset
+     * @zh 获取当前滚动偏移
+     */
+    public GetScrollOffset(): Vec2 | undefined {
+        return this._scrollView && this._scrollView.getScrollOffset();
+    }
+
+    /**
+     * @en Stop the scrolling
+     * @zh 停止滚动
+     */
+    public StopScrolling() {
+        this._scrollView && this._scrollView.stopAutoScroll();
+    }
+
+    /**
+     * @en Scroll to a specific cell
+     * @zh 滚动到指定的单元格
+     */
+    public ScrollToCell(idx: number, timeInSecond: number = 0.01, attenuated: boolean = true) {
+        if (!this._scrollView) return;
+        const maxOffset = this._scrollView.getMaxScrollOffset();
+        if (this.direction === EDirection.VERTICAL) {
+            let row = this._getRow(idx);
+            let offset = this.m_gridCellOffset[row];
+            if (!offset) return;
+            this._scrollView.scrollToOffset(v2(0, offset.y > maxOffset.y ? maxOffset.y : offset.y), timeInSecond, attenuated);
+        }
+        else if (this.direction === EDirection.HORIZONTAL) {
+            let col = this._getCol(idx);
+            let offset = this.m_gridCellOffset[col];
+            if (!offset) return;
+            this._scrollView.scrollToOffset(v2(offset.x > maxOffset.x ? maxOffset.x : offset.x, 0), timeInSecond, attenuated);
+        }
+    }
 
     ////////////////////////////////////////////////////////////
     // implementation
@@ -164,7 +256,7 @@ export class InfiniteGrid extends Component {
     private _content: Node | undefined;
     private _delegate: IFDataSource | undefined;
 
-    private m_debug: boolean = true;
+    private m_debug: boolean = false;
     private m_inited: boolean = false;
 
     private m_gridCellSize: { [row: number]: { [col: number]: Size } } = {};
@@ -220,15 +312,30 @@ export class InfiniteGrid extends Component {
 
     private _addEventListeners() {
         this.node.on(ScrollView.EventType.SCROLLING, this._onScrolling, this);
+        this.node.on(ScrollView.EventType.SCROLL_BEGAN, this._onScrollBegan, this);
+        this.node.on(ScrollView.EventType.SCROLL_ENDED, this._onScrollEnded, this);
     }
 
     private _removeEventListeners() {
         this.node.off(ScrollView.EventType.SCROLLING, this._onScrolling, this);
+        this.node.off(ScrollView.EventType.SCROLL_BEGAN, this._onScrollBegan, this);
+        this.node.off(ScrollView.EventType.SCROLL_ENDED, this._onScrollEnded, this);
     }
 
     private _onScrolling() {
         if (!this._delegate) return;
         this._refreshActiveCell();
+        this._eventOnScrolling && this._eventOnScrolling();
+    }
+
+    private _onScrollBegan() {
+        if (!this._delegate) return;
+        this._eventOnScrollBegan && this._eventOnScrollBegan();
+    }
+
+    private _onScrollEnded() {
+        if (!this._delegate) return;
+        this._eventOnScrollEnded && this._eventOnScrollEnded();
     }
 
     private _enableContentGraphics() {
@@ -250,9 +357,24 @@ export class InfiniteGrid extends Component {
         }
     }
 
+    private _clear(keepPos: boolean = false) {
+        (this.m_activeCellViews || []).forEach((cell) => {
+            this._removeCellView(cell.dataIndex, cell);
+        })
+        this.m_activeCellViews = [];
+        this.m_curOffsetRange = [];
+
+        if (!keepPos) {
+            this.direction === EDirection.VERTICAL ? this._scrollView.scrollToTop() : this._scrollView.scrollToLeft();
+        }
+    }
+
     private _load() {
         const dataLen = this._delegate && this._delegate.GetCellNumber();
         if (!dataLen) return;
+
+        this.m_gridCellSize = [];
+        this.m_gridCellOffset = [];
 
         let totalWidth = 0;
         let totalHeight = 0;
@@ -311,6 +433,47 @@ export class InfiniteGrid extends Component {
         this._refreshActiveCell();
     }
 
+    private _refreshActiveCell(force?: boolean) {
+        const range = this._getScrowOffsetRange();
+        if (!this._isRangeValid(range)) return;
+
+        const isRangeEqual = this._isRangeEqual(range, this.m_curOffsetRange);
+        if (!force && isRangeEqual) return;
+
+        this.m_curOffsetRange = range;
+
+        this.m_activeCellViews.forEach((cell, index) => {
+            let dataIndex = cell.dataIndex;
+            if (dataIndex < 0) return;
+
+            let rc = this.direction === EDirection.VERTICAL ? this._getRow(dataIndex) : this._getCol(dataIndex);
+            let isInRange = rc >= this.m_curOffsetRange[0] && rc <= this.m_curOffsetRange[1];
+
+            if (isInRange) {
+                this._updateCellView(dataIndex, cell);
+            }
+            else {
+                this._removeCellView(dataIndex, cell);
+                this.m_activeCellViews[index] = undefined;
+            }
+        });
+
+        this.m_activeCellViews = this.m_activeCellViews.filter((cell) => cell !== undefined);
+        if (isRangeEqual) return;
+
+        for (let i = this.m_curOffsetRange[0]; i <= this.m_curOffsetRange[1]; i ++) {
+            for (let j = 0; j < this.cellNum; j ++) {
+                let dataIndex = this.direction === EDirection.VERTICAL ? this._getDataIndexByRowCol(i, j) : this._getDataIndexByRowCol(j, i);
+                if (dataIndex === undefined) break;
+
+                let cell = this._getActiveCellView(dataIndex);
+                if (!cell) {
+                    this._addCellView(dataIndex);
+                }
+            }
+        }
+    }
+
     private _removeCellView(dataIndex: number, cell?: InfiniteCell) {
         cell = cell || this._getActiveCellView(dataIndex);
         if (!cell) return;
@@ -341,43 +504,6 @@ export class InfiniteGrid extends Component {
 
     private _updateCellView(dataIndex: number, cell: InfiniteCell) {
         cell.UpdateContent(this._delegate.GetCellData(dataIndex));
-    }
-
-    private _refreshActiveCell() {
-        const range = this._getScrowOffsetRange();
-        if (!this._isRangeValid(range) || this._isRangeEqual(range, this.m_curOffsetRange)) return;
-
-        this.m_curOffsetRange = range;
-
-        this.m_activeCellViews.forEach((cell, index) => {
-            let dataIndex = cell.dataIndex;
-            if (dataIndex < 0) return;
-
-            let rc = this.direction === EDirection.VERTICAL ? this._getRow(dataIndex) : this._getCol(dataIndex);
-            let isInRange = rc >= this.m_curOffsetRange[0] && rc <= this.m_curOffsetRange[1];
-
-            if (isInRange) {
-                this._updateCellView(dataIndex, cell);
-            }
-            else {
-                this._removeCellView(dataIndex, cell);
-                this.m_activeCellViews[index] = undefined;
-            }
-        });
-
-        this.m_activeCellViews = this.m_activeCellViews.filter((cell) => cell !== undefined);
-
-        for (let i = this.m_curOffsetRange[0]; i <= this.m_curOffsetRange[1]; i ++) {
-            for (let j = 0; j < this.cellNum; j ++) {
-                let dataIndex = this.direction === EDirection.VERTICAL ? this._getDataIndexByRowCol(i, j) : this._getDataIndexByRowCol(j, i);
-                if (dataIndex === undefined) break;
-
-                let cell = this._getActiveCellView(dataIndex);
-                if (!cell) {
-                    this._addCellView(dataIndex);
-                }
-            }
-        }
     }
 
     private _getActiveCellView(dataIndex: number): InfiniteCell | undefined {
@@ -445,6 +571,7 @@ export class InfiniteGrid extends Component {
         else if (this.direction === EDirection.HORIZONTAL) {
             let isOutLeft = curOffset.x > 0;
             curOffset.x = Math.abs(curOffset.x);
+
             let offsetRight = isOutLeft ? (viewSize.width - curOffset.x) : (curOffset.x + viewSize.width);
             curOffset.x = isOutLeft ? 0 : curOffset.x;
 
