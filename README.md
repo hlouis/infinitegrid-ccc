@@ -25,7 +25,7 @@ This project provides an InfiniteGrid component for Cocos Creator >= 3.8.0, desi
 
 ### Setting Up the InfiniteGrid
 
-1. Prepare Cell Templates.
+1. Prepare Cell Templates. Ensure the anchor point of the cell node is set to the center v2(0.5, 0.5).
 
 2. Create a new Node in your Cocos Creator scene.
 
