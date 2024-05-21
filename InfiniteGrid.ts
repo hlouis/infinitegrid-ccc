@@ -562,54 +562,80 @@ export class InfiniteGrid extends Component {
     private _getScrowOffsetRange(offset?: Vec2): number[] {
         const curOffset = offset || this._scrollView.getScrollOffset();
         const viewSize = this._scrollView.view.contentSize;
-        const contentSize = this._scrollView.content.getComponent(UITransform).contentSize;
+
+        if (this._isScrollOutOfBound(offset)) {
+            return [-1, -1];
+        }
 
         if (this.direction === EDirection.VERTICAL) {
+            const offsetTop = curOffset.y < 0 ? 0 : curOffset.y;
             const offsetBottom = curOffset.y + viewSize.height;
+            const rows: string[] = Object.keys(this.m_gridCellOffset);
+
             let rowTop = -1;
             let rowBottom = -1;
 
-            for (let k in this.m_gridCellOffset) {
-                let row = Number(k);
-                let offset = this.m_gridCellOffset[row];
-                if (offset.y > offsetBottom) break;
+            let low = 0;
+            let high = Number(rows[rows.length - 1]);
 
-                let nextOffsetY = this.m_gridCellOffset[row + 1] ? this.m_gridCellOffset[row + 1].y : contentSize.height;
-                if (rowTop == -1 && nextOffsetY >= curOffset.y) {
-                    rowTop = row;
+            while(low <= high) {
+                let mid = Math.floor((low + high) / 2);
+                let offset = this.m_gridCellOffset[mid];
+                if ((offset.y - this.paddingTop) <= offsetTop) {
+                    rowTop = mid;
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
                 }
+            }
 
-                if (rowTop > -1) {
+            if (rowTop >= 0) {
+                high = Number(rows[rows.length - 1]);
+                for (let row = rowTop + 1; row <= high; row ++) {
+                    let offset = this.m_gridCellOffset[row];
+                    if (offset.y > offsetBottom) {
+                        break;
+                    }
                     rowBottom = row;
                 }
+                rowBottom = rowBottom == -1 ? rowTop : rowBottom;
             }
 
             return [rowTop, rowBottom];
         }
 
         if (this.direction === EDirection.HORIZONTAL) {
-            const isOutLeft = curOffset.x > 0;
-            curOffset.x = Math.abs(curOffset.x);
-
-            let offsetRight = isOutLeft ? (viewSize.width - curOffset.x) : (curOffset.x + viewSize.width);
-            curOffset.x = isOutLeft ? 0 : curOffset.x;
+            const offsetRight = curOffset.x - viewSize.width;
+            const offsetLeft = curOffset.x > 0 ? 0 : curOffset.x;
+            const cols: string[] = Object.keys(this.m_gridCellOffset);
 
             let colLeft = -1;
             let colRight = -1;
 
-            for (let k in this.m_gridCellOffset) {
-                let col = Number(k);
-                let offset = this.m_gridCellOffset[col];
-                if (offset.x > offsetRight) break;
+            let low = 0;
+            let high = Number(cols[cols.length - 1]);
 
-                let nextOffsetX = this.m_gridCellOffset[col + 1] ? this.m_gridCellOffset[col + 1].x : contentSize.width;
-                if (colLeft == -1 && nextOffsetX >= curOffset.x) {
-                    colLeft = col;
+            while(low <= high) {
+                let mid = Math.floor((low + high) / 2);
+                let offset = this.m_gridCellOffset[mid];
+                if (-(offset.x - this.paddingLeft) >= offsetLeft) {
+                    colLeft = mid;
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
                 }
+            }
 
-                if (colLeft > -1) {
+            if (colLeft >= 0) {
+                high = Number(cols[cols.length - 1]);
+                for (let col = colLeft + 1; col <= high; col ++) {
+                    let offset = this.m_gridCellOffset[col];
+                    if (-offset.x < offsetRight) {
+                        break;
+                    }
                     colRight = col;
                 }
+                colRight = colRight == -1 ? colLeft : colRight;
             }
 
             return [colLeft, colRight]
@@ -643,6 +669,20 @@ export class InfiniteGrid extends Component {
             let dataIndex = col * this.cellNum + row;
             return dataIndex < this._delegate.GetCellNumber() ? dataIndex : undefined;
         }
+    }
+
+    private _isScrollOutOfBound(offset: Vec2): boolean {
+        const curOffset = offset || this._scrollView.getScrollOffset();
+        const viewSize = this._scrollView.view.contentSize;
+        const contentSize = this._scrollView.content.getComponent(UITransform).contentSize;
+        if (this.direction === EDirection.VERTICAL && (curOffset.y < -viewSize.height || curOffset.y > contentSize.height)) {
+            return true;
+        }
+
+        if (this.direction === EDirection.HORIZONTAL && (curOffset.x > viewSize.width || curOffset.x < -contentSize.width)) {
+            return true;
+        }
+        return false;
     }
 
     private _isRangeValid(range: number[]): boolean {
