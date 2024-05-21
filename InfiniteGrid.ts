@@ -433,7 +433,7 @@ export class InfiniteGrid extends Component {
     }
 
     private _refreshActiveCell(force?: boolean) {
-        const range = this._getScrowOffsetRange();
+        const range = this._getScrollOffsetRange();
         if (!this._isRangeValid(range)) return;
 
         const isRangeEqual = this._isRangeEqual(range, this.m_curOffsetRange);
@@ -471,7 +471,7 @@ export class InfiniteGrid extends Component {
         for (let i = this.m_curOffsetRange[0]; i <= this.m_curOffsetRange[1]; i ++) {
             for (let j = 0; j < this.cellNum; j ++) {
 
-                let dataIndex;
+                let dataIndex: number | undefined;
                 if (this.direction === EDirection.VERTICAL) {
                     dataIndex = this._getDataIndexByRowCol(i, j);
                 }
@@ -559,7 +559,7 @@ export class InfiniteGrid extends Component {
         }
     }
 
-    private _getScrowOffsetRange(offset?: Vec2): number[] {
+    private _getScrollOffsetRange(offset?: Vec2): number[] {
         const curOffset = offset || this._scrollView.getScrollOffset();
         const viewSize = this._scrollView.view.contentSize;
 
