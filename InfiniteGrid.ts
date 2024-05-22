@@ -563,7 +563,7 @@ export class InfiniteGrid extends Component {
         const curOffset = offset || this._scrollView.getScrollOffset();
         const viewSize = this._scrollView.view.contentSize;
 
-        if (this._isScrollOutOfBound(offset)) {
+        if (this._isScrollOutOfBound(curOffset)) {
             return [-1, -1];
         }
 
