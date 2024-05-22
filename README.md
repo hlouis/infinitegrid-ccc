@@ -2,6 +2,28 @@
 
 This project provides an InfiniteGrid component for Cocos Creator >= 3.8.0, designed to efficiently handle large data sets with smooth scrolling and cell reuse. It is highly configurable and supports both vertical and horizontal scrolling.
 
+```
+Vertical :                                             Horizontal :
+
+                 ┌───────────────────┐  ┌───┐ ┌───┐    ┌────────────────────────────────────────┐
+                 │                   │  │ A │ │ B │    │                                        │
+ row 0 ◄─────────┤ ┌───┐ ┌───┐ ┌───┐ │  └───┘ │   │    │ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐          │
+                 │ │ A │ │ A │ │ B │ │        └───┘    │ │ A │ │ B │ │ B │ │ A │ │ B │          │
+                 │ └───┘ └───┘ │   │ │                 │ └───┘ │   │ │   │ └───┘ │   │          │
+                 │             └───┘ │                 │       └───┘ └───┘       └───┘          │
+                 │                   │                 │                                        │
+ row 1 ◄─────────┤ ┌───┐ ┌───┐ ┌───┐ │                 │ ┌───┐ ┌───┐ ┌───┐ ┌───┐                │
+                 │ │ B │ │ B │ │ A │ │                 │ │ A │ │ B │ │ A │ │ A │                │
+                 │ │   │ │   │ └───┘ │                 │ └───┘ │   │ └───┘ └───┘                │
+                 │ └───┘ └───┘       │                 │       └───┘                            │
+                 │                   │                 │                                        │
+ row 2 ◄─────────┤ ┌───┐ ┌───┐ ┌───┐ │                 └─┬─────┬─────┬─────┬─────┬──────────────┘
+                 │ │ A │ │ A │ │ B │ │                   │     │     │     │     │
+                 │ └───┘ └───┘ │   │ │                   ▼     ▼     ▼     ▼     ▼
+                 │             └───┘ │                 col 0 col 1 col 2 col 3 col 4
+                 │                   │
+                 └───────────────────┘
+```
 
 ## Features
 
