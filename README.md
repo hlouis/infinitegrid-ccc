@@ -62,6 +62,69 @@ row 3 ◄─────┤   ┌───┐  ┌──────────
        padding Left  spacing X                                                    padding Right
 ```
 
+```
+Align:
+                                                              ┌─────────────────────┐
+                                                              │                     │
+                                                              │ ┌───┐               │
+             ┌───────────────────────────────────────┐        │ │ A │               │
+             │                                       │        │ └───┘               │
+             │ ┌───┐  ┌────────┐  ┌────────────────┐ │        │                     │
+             │ │ A │  │ B      │  │ C              │ │        │ ┌────────┐          │
+FLEX_START   │ └───┘  │        │  │                │ │        │ │ B      │          │
+             │        │        │  └────────────────┘ │        │ │        │          │
+             │        │        │                     │        │ │        │          │
+             │        └────────┘                     │        │ │        │          │
+             │                                       │        │ └────────┘          │
+             └───────────────────────────────────────┘        │                     │
+                                                              │ ┌────────────────┐  │
+                                                              │ │ C              │  │
+                                                              │ │                │  │
+                                                              │ └────────────────┘  │
+                                                              │                     │
+                                                              └─────────────────────┘
+
+                                                              ┌─────────────────────┐
+                                                              │                     │
+                                                              │        ┌───┐        │
+             ┌───────────────────────────────────────┐        │        │ A │        │
+             │                                       │        │        └───┘        │
+             │        ┌────────┐                     │        │                     │
+             │ ┌───┐  │ B      │  ┌────────────────┐ │        │      ┌────────┐     │
+             │ │ A │  │        │  │ C              │ │        │      │ B      │     │
+ CENTER      │ └───┘  │        │  │                │ │        │      │        │     │
+             │        │        │  └────────────────┘ │        │      │        │     │
+             │        └────────┘                     │        │      │        │     │
+             │                                       │        │      └────────┘     │
+             └───────────────────────────────────────┘        │                     │
+                                                              │  ┌────────────────┐ │
+                                                              │  │ C              │ │
+                                                              │  │                │ │
+                                                              │  └────────────────┘ │
+                                                              │                     │
+                                                              └─────────────────────┘
+
+                                                              ┌─────────────────────┐
+                                                              │                     │
+                                                              │               ┌───┐ │
+             ┌───────────────────────────────────────┐        │               │ A │ │
+             │                                       │        │               └───┘ │
+             │        ┌────────┐                     │        │                     │
+FLEX_END     │        │ B      │                     │        │          ┌────────┐ │
+             │        │        │  ┌────────────────┐ │        │          │ B      │ │
+             │ ┌───┐  │        │  │ C              │ │        │          │        │ │
+             │ │ A │  │        │  │                │ │        │          │        │ │
+             │ └───┘  └────────┘  └────────────────┘ │        │          │        │ │
+             │                                       │        │          └────────┘ │
+             └───────────────────────────────────────┘        │                     │
+                                                              │  ┌────────────────┐ │
+                                                              │  │ C              │ │
+                                                              │  │                │ │
+                                                              │  └────────────────┘ │
+                                                              │                     │
+                                                              └─────────────────────┘
+```
+
 ## Features
 
 1. Dynamic Loading: Dynamically loads and unloads cells based on user scrolling position.
@@ -101,7 +164,7 @@ row 3 ◄─────┤   ┌───┐  ┌──────────
 
     - Direction: Set the scrolling direction (vertical or horizontal).
 
-    - Align: Depending on your requirements, set the alignment for the cells. This could be centered, FLEX_START, CENTER or FLEX_End, etc.
+    - Align: Depending on your requirements, set the alignment for the cells. This could be FLEX_START, CENTER or FLEX_End, etc. Refer to [CSS Flexbox (align-items)](https://medium.com/@MakeComputerScienceGreatAgain/understanding-flexbox-a-comprehensive-guide-992bcd5f04de)
 
     - Padding: Set the padding values for the grid.
 

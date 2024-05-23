@@ -21,7 +21,7 @@ enum EDirection {
 ccenum(EDirection);
 
 /**
- * Refer to CSS Flexbox [https://medium.com/@MakeComputerScienceGreatAgain/understanding-flexbox-a-comprehensive-guide-992bcd5f04de]
+ * Refer to CSS Flexbox (align-items) [https://medium.com/@MakeComputerScienceGreatAgain/understanding-flexbox-a-comprehensive-guide-992bcd5f04de]
  *
  * @en Alignment of the cells
  * FLEX_START: (vertical) top alignment, (horizontal) left alignment
