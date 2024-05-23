@@ -1,4 +1,4 @@
-import { Color, Component, Graphics, Mask, Node, NodePool, ScrollView, Size, UITransform, Vec2, _decorator, ccenum, director, sp, v2 } from "cc";
+import { Color, Component, Graphics, Mask, Node, NodePool, ScrollView, Size, UITransform, Vec2, _decorator, ccenum, size, v2 } from "cc";
 import { InfiniteCell } from "./InfiniteCell";
 const { ccclass, property } = _decorator;
 
@@ -10,11 +10,36 @@ const { ccclass, property } = _decorator;
  * Based on Cocos Creator 3.8.2
  */
 
+/**
+ * @en Direction of the grid scrolling
+ * @zh 滚动的方向
+ */
 enum EDirection {
     VERTICAL = 1,
     HORIZONTAL,
 }
 ccenum(EDirection);
+
+/**
+ * Refer to CSS Flexbox [https://medium.com/@MakeComputerScienceGreatAgain/understanding-flexbox-a-comprehensive-guide-992bcd5f04de]
+ *
+ * @en Alignment of the cells
+ * FLEX_START: (vertical) top alignment, (horizontal) left alignment
+ * CENTER: center alignment
+ * FLEX_END: (vertical) bottom alignment, (horizontal) right alignment
+ *
+ * @zh 单元格的对齐方式
+ * FLEX_START: (垂直)顶部对齐，(水平)左对齐
+ * CENTER: 居中对齐
+ * FLEX_END: (垂直)底部对齐，(水平)右对齐
+ *
+ */
+enum EAlign {
+    FLEX_START = 1,
+    CENTER,
+    FLEX_End,
+}
+ccenum(EAlign);
 
 export interface IFDataSource {
     /**
@@ -63,6 +88,16 @@ export class InfiniteGrid extends Component {
         tooltip: "Scrolling direction of the grid \n 列表滚动的方向"
     })
     public direction = EDirection.VERTICAL;
+
+    /**
+     * @en Alignment of the cells
+     * @zh 单元格的对齐方式
+     */
+    @property({
+        type: EAlign,
+        tooltip: "Alignment of the cells \n 单元格的对齐方式"
+    })
+    public align = EAlign.FLEX_START;
 
     /**
      * @en Top padding for the grid
@@ -138,6 +173,15 @@ export class InfiniteGrid extends Component {
         tooltip: "Enable or disable elastic scrolling \n 启用或禁用弹性滚动"
     })
     public elastic: boolean = true;
+
+    /**
+     * @en Enable Content Graphics for debugging
+     * @zh 启用 Content Graphics 用于调试
+     */
+    @property({
+        tooltip: "Enable Content Graphics for debugging \n  启用 Content Graphics 用于调试",
+    })
+    public debugContentGraphics: boolean = false;
 
     /**
      * @en Initialize the grid with the data source
@@ -244,10 +288,11 @@ export class InfiniteGrid extends Component {
     private _content: Node | undefined;
     private _delegate: IFDataSource | undefined;
 
-    // Enable ContentGraphics for debugging
-    private m_debug: boolean = false;
     // After add component Scrollview , Mask, content Node, the onLoad function will be called.
     private m_inited: boolean = false;
+
+    // The size of the scrolling content Node.
+    private m_contentSize: Size = size(0, 0);
 
     /**
      * @en A map that stores the size of each cell, organized by row and column.
@@ -371,7 +416,7 @@ export class InfiniteGrid extends Component {
     }
 
     public update() {
-        if (this.m_debug) {
+        if (this.debugContentGraphics) {
             this._enableContentGraphics();
         }
     }
@@ -508,6 +553,7 @@ export class InfiniteGrid extends Component {
                 this._setGridCellCoordinates(dataIndex, row, col);
 
                 nextCol_();
+                isLastCell && updateTotalHeight_(isLastCell);
                 continue;
             }
 
@@ -536,10 +582,13 @@ export class InfiniteGrid extends Component {
             }
             else {
                 nextCol_();
+                isLastCell && updateTotalHeight_(isLastCell);
             }
         }
 
         uiTransContent.setContentSize(totalWidth, totalHeight);
+        // The size of the scrolling content Node.
+        this.m_contentSize = uiTransContent.contentSize;
     }
 
     private _loadHorizontal() {
@@ -596,16 +645,16 @@ export class InfiniteGrid extends Component {
                 this._setGridCellCoordinates(dataIndex, row, col);
 
                 nextRow_();
+                isLastCell && updateTotalWidth_(isLastCell);
                 continue;
             }
 
-            if (col) {
+            if (row) {
                 updateTotalWidth_(isLastCell);
                 nextCol_();
                 dataIndex --;
                 continue;
             }
-
 
             /**
              * @en Set this cell as the first cell in this column. If the height of this cell still exceeds the height of the scroll area, this cell becomes the only cell in this column.
@@ -625,10 +674,13 @@ export class InfiniteGrid extends Component {
             }
             else {
                 nextRow_();
+                isLastCell && updateTotalWidth_(isLastCell);
             }
         }
 
         uiTransContent.setContentSize(totalWidth, totalHeight);
+        // The size of the scrolling content Node.
+        this.m_contentSize = uiTransContent.contentSize;
     }
 
     private _refreshActiveCell(force?: boolean) {
@@ -668,8 +720,6 @@ export class InfiniteGrid extends Component {
 
                 let row = this.direction === EDirection.VERTICAL ? i : j;
                 let col = this.direction === EDirection.VERTICAL ? j : i;
-
-                console.log('>>> row', row, 'col', col);
 
                 if (!this.m_gridCellSize[row] || !this.m_gridCellSize[row][col]) break;
 
@@ -742,7 +792,24 @@ export class InfiniteGrid extends Component {
                 posX += this.m_gridCellSize[row][i].width;
             }
             posX = posX + col * this.spacingX - size.width / 2;
-            return { x: posX, y: - this.m_gridCellOffset[row].y - size.height / 2 };
+
+            let curRowOffset = this.m_gridCellOffset[row];
+            let nextRowOffset = this.m_gridCellOffset[row + 1];
+            let curRowHeight = nextRowOffset ?
+                                nextRowOffset.y - curRowOffset.y - this.spacingY :
+                                this.m_contentSize.height - curRowOffset.y - this.paddingBottom;
+
+            let posY = -curRowOffset.y;
+            if (this.align === EAlign.FLEX_START) {
+                posY = posY - size.height / 2;
+            }
+            else if (this.align === EAlign.CENTER) {
+                posY = posY - (curRowHeight - size.height) / 2 - size.height / 2;
+            }
+            else if (this.align === EAlign.FLEX_End) {
+                posY = posY - (curRowHeight - size.height / 2);
+            }
+            return { x: posX, y: posY };
         }
 
         if (this.direction === EDirection.HORIZONTAL) {
@@ -751,7 +818,24 @@ export class InfiniteGrid extends Component {
                 posY -= this.m_gridCellSize[i][col].height;
             }
             posY = posY - row * this.spacingY + size.height / 2;
-            return { x: this.m_gridCellOffset[col].x + size.width / 2, y: posY }
+
+            let curColOffset = this.m_gridCellOffset[col];
+            let nexColOffset = this.m_gridCellOffset[col + 1];
+            let curColWidth = nexColOffset ?
+                                nexColOffset.x - curColOffset.x - this.spacingX :
+                                this.m_contentSize.width - curColOffset.x - this.paddingRight;
+
+            let posX = curColOffset.x;
+            if (this.align === EAlign.FLEX_START) {
+                posX = posX + size.width / 2;
+            }
+            else if (this.align === EAlign.CENTER) {
+                posX = posX + (curColWidth - size.width) / 2 + size.width /2;
+            }
+            else if (this.align === EAlign.FLEX_End) {
+                posX = posX + (curColWidth - size.width / 2);
+            }
+            return { x: posX, y: posY }
         }
     }
 

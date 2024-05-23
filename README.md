@@ -101,6 +101,8 @@ row 3 ◄─────┤   ┌───┐  ┌──────────
 
     - Direction: Set the scrolling direction (vertical or horizontal).
 
+    - Align: Depending on your requirements, set the alignment for the cells. This could be centered, FLEX_START, CENTER or FLEX_End, etc.
+
     - Padding: Set the padding values for the grid.
 
     - Spacing: Set the spacing between cells.
