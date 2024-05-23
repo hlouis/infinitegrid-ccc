@@ -1,4 +1,4 @@
-import { Color, Component, Graphics, Mask, Node, NodePool, ScrollView, Size, UITransform, Vec2, _decorator, ccenum, v2 } from "cc";
+import { Color, Component, Graphics, Mask, Node, NodePool, ScrollView, Size, UITransform, Vec2, _decorator, ccenum, director, sp, v2 } from "cc";
 import { InfiniteCell } from "./InfiniteCell";
 const { ccclass, property } = _decorator;
 
@@ -26,7 +26,7 @@ export interface IFDataSource {
      * 通过数据的下标返回这个 CellView 类型标志
      * @param dataIndex: 当前 Cell 所渲染的数据在列表中的下标
      */
-    GetCellIdentifer(dataIndex: number): string;
+    GetCellIdentifier(dataIndex: number): string;
 
     /**
      * 通过数据的下标返回这个 Cell 的尺寸
@@ -55,10 +55,8 @@ export interface IFDataSource {
 export class InfiniteGrid extends Component {
 
     /**
-     * @en
-     *  Direction of the grid scrolling
-     * @zh
-     *  列表滚动的方向
+     * @en Direction of the grid scrolling
+     * @zh 列表滚动的方向
      */
     @property({
         type: EDirection,
@@ -131,15 +129,6 @@ export class InfiniteGrid extends Component {
         tooltip: "Vertical spacing between cells \n 单元格之间的垂直间距"
     })
     public spacingY: number = 0;
-
-    /**
-     * @en Number of cells in a row (vertical) or column (horizontal)
-     * @zh 每行（垂直）或每列（水平）的单元格数量
-     */
-    @property({
-        tooltip: "Number of cells in a row (vertical) or column (horizontal) \n 每行（垂直）或每列（水平）的单元格数量"
-    })
-    public cellNum: number = 1;
 
     /**
      * @en Enable or disable elastic scrolling
@@ -228,7 +217,7 @@ export class InfiniteGrid extends Component {
 
     /**
      * @en Scroll to a specific cell
-     * @zh 滚动到指定的单元格
+     * @zh 滚动到指定的单元格 (vertical)该单元格在最上边，(horizontal)该单元格在最左边
      */
     public ScrollToCell(idx: number, timeInSecond: number = 0.01, attenuated: boolean = true) {
         if (!this._scrollView) return;
@@ -255,14 +244,92 @@ export class InfiniteGrid extends Component {
     private _content: Node | undefined;
     private _delegate: IFDataSource | undefined;
 
+    // Enable ContentGraphics for debugging
     private m_debug: boolean = false;
+    // After add component Scrollview , Mask, content Node, the onLoad function will be called.
     private m_inited: boolean = false;
 
+    /**
+     * @en A map that stores the size of each cell, organized by row and column.
+     * @zh 记录每个cell的size
+     */
     private m_gridCellSize: { [row: number]: { [col: number]: Size } } = {};
-    private m_gridCellOffset: { [row: number]: Vec2 } = {};
+
+    /**
+     * @en Sets the size of a cell in the grid.
+     * @zh 设置网格中某个单元格的大小。
+     *
+     * @param row The row index of the cell.
+     * @param col The column index of the cell.
+     * @param size The size of the cell.
+     */
+    private _setGridCellSize = (row: number, col: number, size: Size) => {
+        if (!this.m_gridCellSize[row]) this.m_gridCellSize[row] = {};
+        this.m_gridCellSize[row][col] = size;
+    }
+
+    /**
+     * @en A map that records the offset for each row (vertical) or each column (horizontal).
+     * @zh 记录 (vertical)每一行的offset，(horizontal)每一列的offset
+     */
+    private m_gridCellOffset: { [rowCol: number]: Vec2 } = {};
+
+    /**
+     * @en Sets the offset for a specific row or column in the grid.
+     * @zh 设置网格中某一行或某一列的偏移量。
+     * @param rowCol The index of the row or column.
+     * @param offset The offset value for the row or column.
+     */
+    private _setGridCellOffset = (rowCol: number, offset: Vec2) => {
+        this.m_gridCellOffset[rowCol] = offset;
+    }
+
+    /**
+     * @en A map that records the coordinates (row and column) of each cell in the scroll container for the corresponding dataIndex.
+     * @zh 记录每个数据的dataIndex对应的cell在整个滚动容器中的坐标，即(row，col)
+     */
+    private m_gridCellCoordinates: { [dataIndex: number]: { row: number, col: number } } = {};
+    /**
+     * @en A map that records the dataIndex of the first cell in each row (vertical).
+     * @en A map that records the dataIndex of the first cell in each row (vertical) or each column (horizontal).
+     * @zh 记录每一行(vertiacl) 第一个col的dataIndex, (horizontal)第一个rol的dataIndex。
+     */
+    private m_gridCellCoordinatesPrefix: { [rowCol: number]: number } = {};
+
+    /**
+     * @en Sets the coordinates (row and column) for a specific dataIndex in the grid. Also records the dataIndex of the first cell in each row or column depending on the scrolling direction.
+     * @zh 设置网格中某个 dataIndex 的坐标（行和列）。根据滚动方向，也记录每行或每列第一个 cell 的 dataIndex。
+     * @param dataIndex The index of the data.
+     * @param row The row index of the cell.
+     * @param col The column index of the cell.
+     */
+    private _setGridCellCoordinates = (dataIndex: number, row: number, col: number) => {
+        this.m_gridCellCoordinates[dataIndex] = { row: row, col: col };
+
+        if (this.direction === EDirection.VERTICAL && this.m_gridCellCoordinatesPrefix[row] == undefined) {
+            this.m_gridCellCoordinatesPrefix[row] = dataIndex;
+        }
+        else if (this.direction === EDirection.HORIZONTAL && this.m_gridCellCoordinatesPrefix[col] == undefined) {
+            this.m_gridCellCoordinatesPrefix[col] = dataIndex;
+        }
+    }
+
+    /**
+     * @en The range of cells currently within the visible scroll area, represented as (rowTop, rowBottom) or (colLeft, colRight).
+     * @zh 当前滚动区域内的cell的范围， 即(rowTop, rowBottom) 或者 (colLeft, colRight)
+     */
     private m_curOffsetRange: number[] = [];
+
+    /**
+     * @en The cells currently within the visible scroll area.
+     * @zh 当前滚动区域内的cell
+     */
     private m_activeCellViews: InfiniteCell[] = [];
 
+    /**
+     * @en Each cell, when destroyed, is placed into this pool for reuse.
+     * @zh 每个cell销毁时，会被放入这个池中，以便重复利用
+     */
     private m_cellPools: { [name: string]: NodePool } = {};
 
     public onLoad() {
@@ -374,68 +441,198 @@ export class InfiniteGrid extends Component {
 
         this.m_gridCellSize = {};
         this.m_gridCellOffset = {};
+        this.m_gridCellCoordinates = {};
+        this.m_gridCellCoordinatesPrefix = {};
 
-        let totalWidth = 0;
-        let totalHeight = 0;
-        let curSizeArr = [];
-
-        for (let i = 0; i < dataLen; i++) {
-            if (!i) {
-                this.direction === EDirection.VERTICAL && (totalHeight += this.paddingTop);
-                this.direction === EDirection.HORIZONTAL && (totalWidth += this.paddingLeft);
-            }
-            else if (i == dataLen - 1) {
-                this.direction === EDirection.VERTICAL && (totalHeight += this.paddingBottom);
-                this.direction === EDirection.HORIZONTAL && (totalWidth += this.paddingRight);
-            }
-
-            let row = this._getRow(i);
-            let col = this._getCol(i);
-
-            let size = this._delegate.GetCellSize(i);
-            curSizeArr.push(size);
-
-            if (this.direction === EDirection.VERTICAL && !col) {
-                this.m_gridCellOffset[row] = v2(0, totalHeight);
-                curSizeArr.sort((a, b) => b.height - a.height);
-                totalHeight += curSizeArr[0].height + this.spacingY;
-                curSizeArr = [];
-            }
-
-            if (this.direction === EDirection.HORIZONTAL && !row) {
-                this.m_gridCellOffset[col] = v2(totalWidth, 0);
-                curSizeArr.sort((a, b) => b.width - a.width);
-                totalWidth += curSizeArr[0].width + this.spacingX;
-                curSizeArr = [];
-            }
-
-            if (this.direction === EDirection.VERTICAL) {
-                if (!this.m_gridCellSize[row]) {
-                    this.m_gridCellSize[row] = {};
-                }
-                this.m_gridCellSize[row][col] = size;
-            }
-            else if (this.direction === EDirection.HORIZONTAL) {
-                if (!this.m_gridCellSize[col]) {
-                    this.m_gridCellSize[col] = {};
-                }
-                this.m_gridCellSize[col][row] = size;
-            }
+        if (this.direction === EDirection.VERTICAL) {
+            this._loadVertical();
         }
-
-        const uiTrans = this._content.getComponent(UITransform);
-        uiTrans.setContentSize(
-            this.direction === EDirection.VERTICAL ? uiTrans.width : totalWidth,
-            this.direction === EDirection.VERTICAL ? totalHeight : uiTrans.height
-        );
+        else if (this.direction === EDirection.HORIZONTAL) {
+            this._loadHorizontal();
+        }
 
         this._refreshActiveCell();
     }
 
+    private _loadVertical() {
+        const uiTransContent = this._content.getComponent(UITransform);
+        const contentSize = uiTransContent.contentSize;
+        const dataLen = this._delegate.GetCellNumber();
+
+        let totalWidth = contentSize.width;
+        let totalHeight = this.paddingTop;
+
+        let curRowWidth = 0;
+        let curRowSizeArr = [];
+        let row = -1;
+        let col = -1;
+
+        const nextRow_ = () => {
+            row ++;
+            col = 0;
+            curRowWidth = 0;
+            curRowSizeArr = [];
+        }
+
+        const nextCol_ = () => {
+            col ++;
+        }
+
+        /**
+         * @en When the last cell in each row is added, the height of the tallest cell is used as the height of the row, and the overall height of the scrolling container is updated.
+         * @zh 每一个row添加完最后一个cell的时候, 找高度最高的cell作为这一行的高度，并且更新整体滚动容器的高度
+         * @param isLastCell
+         */
+        const updateTotalHeight_ = (isLastCell: boolean) => {
+            this._setGridCellOffset(row, v2(0, totalHeight));
+            curRowSizeArr.sort((a, b) => { return b.height - a.height });
+            totalHeight += curRowSizeArr[0].height + (isLastCell ? 0 : this.spacingY) + (isLastCell ? this.paddingBottom : 0);
+        }
+
+        nextRow_();
+
+        for (let dataIndex = 0; dataIndex < dataLen; dataIndex ++) {
+            let isLastCell = dataIndex === dataLen - 1;
+            let cellSize = this._delegate.GetCellSize(dataIndex);
+
+            /**
+             * @en If this cell, when added, exceeds the width of the scroll area, it will be added to the current row if it's the first cell in the current row. Otherwise, it will be added to the next row.
+             * @zh 如果这个cell添加后超过滚动区域的宽度，如果这个cell是当前行的第一个cell，这个cell会被添加到当前行，否则这个cell会被添加到下一行。
+             */
+            let isOutOfRow = (curRowWidth + cellSize.width) > totalWidth;
+            if (!isOutOfRow) {
+                curRowWidth += cellSize.width + (!col ? 0 : this.spacingX);
+                curRowSizeArr.push(cellSize);
+
+                this._setGridCellSize(row, col, cellSize);
+                this._setGridCellCoordinates(dataIndex, row, col);
+
+                nextCol_();
+                continue;
+            }
+
+            if (col) {
+                updateTotalHeight_(isLastCell);
+                nextRow_();
+                dataIndex --;
+                continue;
+            }
+
+            /**
+             * @en Set this cell as the first cell in this row. If the width of this cell still exceeds the width of the scroll area, this cell becomes the only cell in this row.
+             * @zh 这个将cell成为这一行的第一个cell，如果这个cell的宽度仍旧超过滚动区域的宽度，这个cell就变成这一行的唯一cell
+             */
+            isOutOfRow = (curRowWidth + cellSize.width) > totalWidth;
+
+            curRowWidth += cellSize.width + (!col ? 0 : this.spacingX);
+            curRowSizeArr.push(cellSize);
+
+            this._setGridCellSize(row, col, cellSize);
+            this._setGridCellCoordinates(dataIndex, row, col);
+
+            if (isOutOfRow) {
+                updateTotalHeight_(isLastCell);
+                nextRow_();
+            }
+            else {
+                nextCol_();
+            }
+        }
+
+        uiTransContent.setContentSize(totalWidth, totalHeight);
+    }
+
+    private _loadHorizontal() {
+        const uiTransContent = this._content.getComponent(UITransform);
+        const contentSize = uiTransContent.contentSize;
+        const dataLen = this._delegate.GetCellNumber();
+
+        let totalWidth = this.paddingLeft;
+        let totalHeight = contentSize.height;
+
+        let curColheight = 0;
+        let curColSizeArr = [];
+        let row = -1;
+        let col = -1;
+
+        const nextRow_ = () => {
+            row ++;
+        }
+
+        const nextCol_ = () => {
+            col ++;
+            row = 0;
+            curColheight = 0;
+            curColSizeArr = [];
+        }
+
+        /**
+         * @en When each column finishes adding the last cell, find the cell with the highest width as the width of this column, and update the width of the overall scroll container.
+         * @zh 每一个col添加完最后一个cell的时候, 找宽度最高的cell作为这一行的宽度，并且更新整体滚动容器的宽度
+         * @param isLastCell
+         */
+        const updateTotalWidth_ = (isLastCell: boolean) => {
+            this._setGridCellOffset(col, v2(totalWidth, 0));
+            curColSizeArr.sort((a, b) => { return b.width - a.width });
+            totalWidth += curColSizeArr[0].width + (isLastCell ? 0 : this.spacingX) + (isLastCell ? this.paddingRight : 0);
+        }
+
+        nextCol_();
+
+        for (let dataIndex = 0; dataIndex < dataLen; dataIndex ++) {
+            let isLastCell = dataIndex === dataLen - 1;
+            let cellSize = this._delegate.GetCellSize(dataIndex);
+
+            /**
+             * @en If this cell exceeds the height of the scroll area after being added, it will be added to the current column if it's the first cell of the current column; otherwise, it will be added to the next column.
+             * @zh 如果这个cell添加后超过滚动区域的高度，如果这个cell是当前列的第一个cell，这个cell会被添加到当前列，否则这个cell会被添加到下一列。
+             */
+            let isOutOfCol = (curColheight + cellSize.height) > totalHeight;
+            if (!isOutOfCol) {
+                curColheight += cellSize.height + (!col ? 0 : this.spacingY);
+                curColSizeArr.push(cellSize);
+
+                this._setGridCellSize(row, col, cellSize);
+                this._setGridCellCoordinates(dataIndex, row, col);
+
+                nextRow_();
+                continue;
+            }
+
+            if (col) {
+                updateTotalWidth_(isLastCell);
+                nextCol_();
+                dataIndex --;
+                continue;
+            }
+
+
+            /**
+             * @en Set this cell as the first cell in this column. If the height of this cell still exceeds the height of the scroll area, this cell becomes the only cell in this column.
+             * @zh 这个将cell成为这一列的第一个cell，如果这个cell的高度仍旧超过滚动区域的高度度，这个cell就变成这一列的唯一cell
+             */
+            isOutOfCol = (curColheight + cellSize.height) > totalHeight;
+
+            curColheight += cellSize.height + (!col ? 0 : this.spacingY);
+            curColSizeArr.push(cellSize);
+
+            this._setGridCellSize(row, col, cellSize);
+            this._setGridCellCoordinates(dataIndex, row, col);
+
+            if (isOutOfCol) {
+                updateTotalWidth_(isLastCell);
+                nextCol_();
+            }
+            else {
+                nextRow_();
+            }
+        }
+
+        uiTransContent.setContentSize(totalWidth, totalHeight);
+    }
+
     private _refreshActiveCell(force?: boolean) {
         const range = this._getScrollOffsetRange();
-        if (!this._isRangeValid(range)) return;
-
         const isRangeEqual = this._isRangeEqual(range, this.m_curOffsetRange);
         if (!force && isRangeEqual) return;
 
@@ -445,15 +642,8 @@ export class InfiniteGrid extends Component {
             let dataIndex = cell.dataIndex;
             if (dataIndex < 0) return;
 
-            let isInRange = false;
-            if (this.direction === EDirection.VERTICAL) {
-                let row = this._getRow(dataIndex);
-                isInRange = row >= this.m_curOffsetRange[0] && row <= this.m_curOffsetRange[1];
-            }
-            else if (this.direction === EDirection.HORIZONTAL) {
-                let col = this._getCol(dataIndex);
-                isInRange = col >= this.m_curOffsetRange[0] && col <= this.m_curOffsetRange[1];
-            }
+            let rc = this.direction === EDirection.VERTICAL ? this._getRow(dataIndex) : this._getCol(dataIndex);
+            let isInRange = rc >= this.m_curOffsetRange[0] && rc <= this.m_curOffsetRange[1];
 
             if (isInRange) {
                 this._updateCellView(dataIndex, cell);
@@ -468,17 +658,22 @@ export class InfiniteGrid extends Component {
 
         this.m_activeCellViews = this.m_activeCellViews.filter((cell) => cell !== undefined);
 
-        for (let i = this.m_curOffsetRange[0]; i <= this.m_curOffsetRange[1]; i ++) {
-            for (let j = 0; j < this.cellNum; j ++) {
+        let min = this.m_curOffsetRange[0];
+        let max = this.m_curOffsetRange[1];
 
-                let dataIndex: number | undefined;
-                if (this.direction === EDirection.VERTICAL) {
-                    dataIndex = this._getDataIndexByRowCol(i, j);
-                }
-                else if (this.direction === EDirection.HORIZONTAL) {
-                    dataIndex = this._getDataIndexByRowCol(j, i);
-                }
+        for (let i = min; i <= max; i ++) {
+            let j = -1;
+            while(true) {
+                j ++;
 
+                let row = this.direction === EDirection.VERTICAL ? i : j;
+                let col = this.direction === EDirection.VERTICAL ? j : i;
+
+                console.log('>>> row', row, 'col', col);
+
+                if (!this.m_gridCellSize[row] || !this.m_gridCellSize[row][col]) break;
+
+                let dataIndex = this._getDataIndexByCoordinate(row, col);
                 if (dataIndex === undefined) break;
 
                 let cell = this._getActiveCellView(dataIndex);
@@ -500,7 +695,7 @@ export class InfiniteGrid extends Component {
     }
 
     private _addCellView(dataIndex: number) {
-        const id = this._delegate.GetCellIdentifer(dataIndex);
+        const id = this._delegate.GetCellIdentifier(dataIndex);
         const cellPool = this._getCellPool(id);
         const node = cellPool && cellPool.get();
         const cell = node && node.getComponent('InfiniteCell') as InfiniteCell || this._delegate.GetCellView(dataIndex);
@@ -536,25 +731,26 @@ export class InfiniteGrid extends Component {
 
     private _getCellPosition(dataIndex: number): {x: number, y: number} {
         const row = this._getRow(dataIndex), col = this._getCol(dataIndex);
+        if (!this._isRangeValid([row, col])) {
+            return v2(0, 0);
+        }
+
+        const size = this.m_gridCellSize[row][col];
         if (this.direction === EDirection.VERTICAL) {
-            const size = this.m_gridCellSize[row][col];
             let posX = 0;
             for (let i = 0; i <= col; i ++) {
                 posX += this.m_gridCellSize[row][i].width;
             }
             posX = posX + col * this.spacingX - size.width / 2;
-
             return { x: posX, y: - this.m_gridCellOffset[row].y - size.height / 2 };
         }
 
         if (this.direction === EDirection.HORIZONTAL) {
-            const size = this.m_gridCellSize[col][row];
             let posY = 0;
             for (let i = 0; i <= row; i ++) {
-                posY -= this.m_gridCellSize[col][i].height;
+                posY -= this.m_gridCellSize[i][col].height;
             }
             posY = posY - row * this.spacingY + size.height / 2;
-
             return { x: this.m_gridCellOffset[col].x + size.width / 2, y: posY }
         }
     }
@@ -643,31 +839,23 @@ export class InfiniteGrid extends Component {
     }
 
     private _getRow(dataIndex: number): number {
-        if (this.direction === EDirection.VERTICAL) {
-            return Math.floor(dataIndex / this.cellNum);
-        }
-        if (this.direction === EDirection.HORIZONTAL) {
-            return dataIndex % this.cellNum;
-        }
+        let ret = this.m_gridCellCoordinates[dataIndex];
+        return ret == undefined ? -1 : ret.row;
     }
 
     private _getCol(dataIndex: number): number {
-        if (this.direction === EDirection.VERTICAL) {
-            return dataIndex % this.cellNum;
-        }
-        if (this.direction === EDirection.HORIZONTAL) {
-            return Math.floor(dataIndex / this.cellNum);
-        }
+        let ret = this.m_gridCellCoordinates[dataIndex];
+        return ret == undefined ? -1 : ret.col;
     }
 
-    private _getDataIndexByRowCol(row: number, col: number): number | undefined {
+    private _getDataIndexByCoordinate(row: number, col: number): number | undefined {
         if (this.direction === EDirection.VERTICAL) {
-            let dataIndex = row * this.cellNum + col;
-            return dataIndex < this._delegate.GetCellNumber() ? dataIndex : undefined;
+            let prefix = this.m_gridCellCoordinatesPrefix[row];
+            return prefix + col;
         }
         if (this.direction === EDirection.HORIZONTAL) {
-            let dataIndex = col * this.cellNum + row;
-            return dataIndex < this._delegate.GetCellNumber() ? dataIndex : undefined;
+            let prefix = this.m_gridCellCoordinatesPrefix[col];
+            return prefix + row;
         }
     }
 

@@ -2,27 +2,76 @@
 
 This project provides an InfiniteGrid component for Cocos Creator >= 3.8.0, designed to efficiently handle large data sets with smooth scrolling and cell reuse. It is highly configurable and supports both vertical and horizontal scrolling.
 
-```
-Vertical :                                             Horizontal :
 
-                 ┌───────────────────┐  ┌───┐ ┌───┐    ┌────────────────────────────────────────┐
-                 │                   │  │ A │ │ B │    │                                        │
- row 0 ◄─────────┤ ┌───┐ ┌───┐ ┌───┐ │  └───┘ │   │    │ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐          │
-                 │ │ A │ │ A │ │ B │ │        └───┘    │ │ A │ │ B │ │ B │ │ A │ │ B │          │
-                 │ └───┘ └───┘ │   │ │                 │ └───┘ │   │ │   │ └───┘ │   │          │
-                 │             └───┘ │                 │       └───┘ └───┘       └───┘          │
-                 │                   │                 │                                        │
- row 1 ◄─────────┤ ┌───┐ ┌───┐ ┌───┐ │                 │ ┌───┐ ┌───┐ ┌───┐ ┌───┐                │
-                 │ │ B │ │ B │ │ A │ │                 │ │ A │ │ B │ │ A │ │ A │                │
-                 │ │   │ │   │ └───┘ │                 │ └───┘ │   │ └───┘ └───┘                │
-                 │ └───┘ └───┘       │                 │       └───┘                            │
-                 │                   │                 │                                        │
- row 2 ◄─────────┤ ┌───┐ ┌───┐ ┌───┐ │                 └─┬─────┬─────┬─────┬─────┬──────────────┘
-                 │ │ A │ │ A │ │ B │ │                   │     │     │     │     │
-                 │ └───┘ └───┘ │   │ │                   ▼     ▼     ▼     ▼     ▼
-                 │             └───┘ │                 col 0 col 1 col 2 col 3 col 4
-                 │                   │
-                 └───────────────────┘
+```
+                                    Vertiacl:
+                                   ┌─────────────────────────────┬────────
+                                   │                             │ padding Top
+cell A                 row 0 ◄─────┤   ┌───┐  ┌───┐  ┌────────┐  ├────────
+┌───┐                              │   │ A │  │ A │  │ B      │  │
+│ A │                              │   └───┘  └───┘  │        │  │
+└───┘                              │                 └────────┘  ├────────
+                                   │                             │ spacing Y
+cell B                 row 1 ◄─────┤   ┌───┐  ┌───────────────┐  ├────────
+┌────────┐                         │   │ A │  │C              │  │
+│ B      │                         │   └───┘  │               │  │
+│        │                         │          └───────────────┘  │
+└────────┘                         │                             │
+                       row 2 ◄─────┤   ┌───┐  ┌───┐  ┌────────┐  │
+ cell C                            │   │ A │  │ A │  │ B      │  │
+┌────────────────┐                 │   └───┘  └───┘  │        │  │
+│ C              │                 │                 └────────┘  │
+│                │                 │                             │
+└────────────────┘     row 3 ◄─────┤   ┌───┐  ┌───────────────┐  │
+                                   │   │ A │  │C              │  │
+                                   │   └───┘  │               │  │
+                                   │          └───────────────┘  ├────────
+                                   │                             │ padding Bottom
+                                   └───────┬──┬──────────────────┴────────
+                                           │s │
+                                           │p │
+                                           │a │
+                                           │c │
+                                            i
+                                            N
+                                            g
+
+                                            X
+
+
+                                   Horizontal:
+
+                                    col 0       col 1               col 2              col 3
+
+                                      ▲           ▲                   ▲                   ▲
+                                      │           │                   │                   │
+                                      │           │                   │                   │
+                                   ┌──┴───────────┴───────────────────┴───────────────────┴────────────────────┐
+                                   │                                                                           │
+                                   │  ┌───┐       ┌────────────────┐  ┌────────┐          ┌───┐                │
+                                   │  │ A │       │ C              │  │ B      │          │ A │                │
+                           ────────┤  └───┘       │                │  │        │          └───┘                │
+                        spacing Y  │              └────────────────┘  └────────┘                               │
+                           ────────┤  ┌───┐                                               ┌────────┐           │
+                                   │  │ A │       ┌───┐               ┌────────────────┐  │ B      │           │
+                                   │  └───┘       │ A │               │ C              │  │        │           │
+                                   │              └───┘               │                │  └────────┘           │
+                                   │  ┌────────┐                      └────────────────┘                       │
+                                   │  │ B      │  ┌───┐                                   ┌────────────────┐   │
+                                   │  │        │  │ A │               ┌───┐               │ C              │   │
+                                   │  └────────┘  └───┘               │ A │               │                │   │
+                                   │                                  └───┘               └────────────────┘   │
+                                   │                                                                           │
+                                   ├──┬────────┬──┬─────────────────────────────────────────────────────────┬──┤
+                                   │p │        │s │                                                         │p │
+                                   │a │        │p │                                                         │a │
+                                   │d │        │a │                                                         │d │
+                                   │d │        │c │                                                         │d │
+                                   │i │        │i │                                                         │i │
+                                   │n │        │n │                                                         │n │
+                                    g           g                                                            g
+
+                                    Left        X                                                            Right
 ```
 
 ## Features
@@ -33,7 +82,14 @@ Vertical :                                             Horizontal :
 
 3. Flexible Data Source: Provides a flexible data source through implementing the IFDataSource interface.
 
-4. Horizontal and Vertical Scrolling: Supports both horizontal and vertical scrolling.
+4. Flexible Layout: Automatically arranges cells based on their sizes.
+
+    - (Vertical): One cell, when added, exceeds the width of the scroll area, it will be added to the current row if it's the first cell in the current row. Otherwise, it will be added to the next row.
+
+    - (Horizontal): One cell, when added, exceeds the height of the scroll area, it will be added to the current column if it's the first cell in the current column. Otherwise, it will be added to the next column.
+
+5. Dynamic Cell Sizes: Handles cells of varying sizes.
+
 
 ## Installation
 
@@ -41,7 +97,7 @@ Vertical :                                             Horizontal :
 
 2. Copy the InfiniteGrid.ts and InfiniteCell.ts files to your Cocos Creator project's assets folder.
 
-3. Ensure you have Cocos Creator >= 3.8.0 installed.
+3. Ensure you have Cocos Creator >= 3.8.0 installed. Not sure work well with versions earlier than 3.8.0.
 
 ## Usage
 
@@ -60,8 +116,6 @@ Vertical :                                             Horizontal :
     - Padding: Set the padding values for the grid.
 
     - Spacing: Set the spacing between cells.
-
-    - Cell Number: Set the number of cells in a row (vertical) or column (horizontal).
 
     - Elastic: Enable or disable elastic scrolling.
 
