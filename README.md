@@ -62,7 +62,7 @@ row 3 ◄─────┤   ┌───┐  ┌──────────
 ```
 
 ```
-Align:       [Vertical]                                       [Horizontal]
+Align:       [Vertical Row]                                   [Horizontal Col]
 
                                                               ┌─────────────────────┐
                                                               │                     │
