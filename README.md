@@ -3,7 +3,7 @@
 This project provides an InfiniteGrid component for Cocos Creator >= 3.8.0, designed to efficiently handle large data sets with smooth scrolling and cell reuse. It is highly configurable and supports both vertical and horizontal scrolling.
 
 ```
-[Vertiacl]                                                          Suppose you have these three different cell:
+[Vertiacl]                                                  Suppose you have these three different cell:
 
             ┌─────────────────────────────┬────────                         ┌───┐
             │                             │ padding Top            cell A   │ A │
