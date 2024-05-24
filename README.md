@@ -278,6 +278,9 @@ infiniteGrid.OnScrolling(() => {
 
 Contributions to `InfiniteGrid` are welcome. If you have any suggestions or improvements, please submit a Pull Request or an Issue.
 
+For a demonstration of how to use InfiniteGrid, visit the example repository:
+[infinitegrid-ccc-proj](https://github.com/hlouis/infinitegrid-ccc-proj)
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
