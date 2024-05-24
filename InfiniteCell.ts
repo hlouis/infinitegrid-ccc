@@ -1,5 +1,5 @@
 import { Component, _decorator } from "cc";
-const { ccclass, property } = _decorator;
+const { ccclass } = _decorator;
 
 /**
  * InfiniteCell base class

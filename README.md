@@ -3,23 +3,23 @@
 This project provides an InfiniteGrid component for Cocos Creator >= 3.8.0, designed to efficiently handle large data sets with smooth scrolling and cell reuse. It is highly configurable and supports both vertical and horizontal scrolling.
 
 ```
-[Vertiacl]
+            [Vertiacl]
 
-            ┌─────────────────────────────┬────────                         ┌───┐
-            │                             │ padding Top            cell A   │ A │
-row 0 ◄─────┤   ┌───┐  ┌───┐  ┌────────┐  ├────────                         └───┘
+            ┌─────────────────────────────┬────────                        ┌───┐
+            │                             │ padding Top            cell A  │ A │
+row 0 ◄─────┤   ┌───┐  ┌───┐  ┌────────┐  ├────────                        └───┘
             │   │ A │  │ A │  │ B      │  │
             │   └───┘  └───┘  │        │  │
-            │                 └────────┘  ├────────                         ┌────────┐
-            │                             │ spacing Y              cell B   │ B      │
-row 1 ◄─────┤   ┌───┐  ┌───────────────┐  ├────────                         │        │
-            │   │ A │  │C              │  │                                 └────────┘
+            │                 └────────┘  ├────────                        ┌────────┐
+            │                             │ spacing Y              cell B  │ B      │
+row 1 ◄─────┤   ┌───┐  ┌───────────────┐  ├────────                        │        │
+            │   │ A │  │C              │  │                                └────────┘
             │   └───┘  │               │  │
             │          └───────────────┘  │
-            │                             │                                 ┌────────────────┐
-row 2 ◄─────┤   ┌───┐  ┌───┐  ┌────────┐  │                        cell C   │ C              │
-            │   │ A │  │ A │  │ B      │  │                                 │                │
-            │   └───┘  └───┘  │        │  │                                 └────────────────┘
+            │                             │                                ┌────────────────┐
+row 2 ◄─────┤   ┌───┐  ┌───┐  ┌────────┐  │                        cell C  │ C              │
+            │   │ A │  │ A │  │ B      │  │                                │                │
+            │   └───┘  └───┘  │        │  │                                └────────────────┘
             │                 └────────┘  │
             │                             │
 row 3 ◄─────┤   ┌───┐  ┌───────────────┐  │
@@ -27,38 +27,38 @@ row 3 ◄─────┤   ┌───┐  ┌──────────
             │   └───┘  │               │  │
             │          └───────────────┘  ├────────
             │                             │ padding Bottom
-            └───────┬──┬──────────────────┴────────
-                    │  │
-                    │  │
-                 spacing X
+            ├───┬───┬──┬───────────────┬──┼────────
+            │   │   │  │               │  │
+            │   │   │  │               │  │
+     padding Left   spacing X          padding Right
 
 
-[Horizontal]
+            [Horizontal]
 
-             col 0       col 1               col 2              col 3
-               ▲           ▲                   ▲                   ▲
-               │           │                   │                   │
-               │           │                   │                   │
-            ┌──┴───────────┴───────────────────┴───────────────────┴────────────────────┐
-            │                                                                           │
-            │  ┌───┐       ┌────────────────┐  ┌────────┐          ┌───┐                │
-            │  │ A │       │ C              │  │ B      │          │ A │                │
-    ────────┤  └───┘       │                │  │        │          └───┘                │
- spacing Y  │              └────────────────┘  └────────┘                               │
-    ────────┤  ┌───┐                                               ┌────────┐           │
-            │  │ A │       ┌───┐               ┌────────────────┐  │ B      │           │
-            │  └───┘       │ A │               │ C              │  │        │           │
-            │              └───┘               │                │  └────────┘           │
-            │  ┌────────┐                      └────────────────┘                       │
-            │  │ B      │  ┌───┐                                   ┌────────────────┐   │
-            │  │        │  │ A │               ┌───┐               │ C              │   │
-            │  └────────┘  └───┘               │ A │               │                │   │
-            │                                  └───┘               └────────────────┘   │
-            │                                                                           │
-            ├──┬────────┬──┬─────────────────────────────────────────────────────────┬──┤
-            │  │        │  │                                                         │  │
-            │  │        │  │                                                         │  │
-       padding Left  spacing X                                                    padding Right
+               col 0       col 1               col 2              col 3
+                 ▲           ▲                   ▲                   ▲
+                 │           │                   │                   │
+                 │           │                   │                   │
+      ────────┬──┴───────────┴───────────────────┴───────────────────┴────────────────────┐
+  padding Top │                                                                           │
+      ────────┤  ┌───┐       ┌────────────────┐  ┌────────┐          ┌───┐                │
+              │  │ A │       │ C              │  │ B      │          │ A │                │
+      ────────┤  └───┘       │                │  │        │          └───┘                │
+    spacing Y │              └────────────────┘  └────────┘                               │
+      ────────┤  ┌───┐                                               ┌────────┐           │
+              │  │ A │       ┌───┐               ┌────────────────┐  │ B      │           │
+              │  └───┘       │ A │               │ C              │  │        │           │
+              │              └───┘               │                │  └────────┘           │
+              │  ┌────────┐                      └────────────────┘                       │
+              │  │ B      │  ┌───┐                                   ┌────────────────┐   │
+              │  │        │  │ A │               ┌───┐               │ C              │   │
+              │  └────────┘  └───┘               │ A │               │                │   │
+              │                                  └───┘               └────────────────┘   ├──────
+              │                                                                           │ padding Bottom
+              ├──┬────────┬──┬─────────────────────────────────────────────────────────┬──┼──────
+              │  │        │  │                                                         │  │
+              │  │        │  │                                                         │  │
+      padding Left        spacing X                                           padding Right
 ```
 
 ```
@@ -164,7 +164,7 @@ FLEX_END     │        │ B      │                     │        │       
 
     - Direction: Set the scrolling direction (vertical or horizontal).
 
-    - Align: Depending on your requirements, set the alignment for the cells. This could be FLEX_START, CENTER or FLEX_End, etc. Refer to [CSS Flexbox (align-items)](https://medium.com/@MakeComputerScienceGreatAgain/understanding-flexbox-a-comprehensive-guide-992bcd5f04de)
+    - Align: Depending on your requirements, set the alignment for the cells. This could be FLEX_START, CENTER or FLEX_END, etc. Refer to [CSS Flexbox (align-items)](https://medium.com/@MakeComputerScienceGreatAgain/understanding-flexbox-a-comprehensive-guide-992bcd5f04de)
 
     - Padding: Set the padding values for the grid.
 
@@ -219,17 +219,16 @@ infiniteGrid.Init(...); // dataSource implements IFDataSource
 You can control the InfiniteGrid using various methods:
 
 
-1. Reload: Reload the entire grid, optionally keeping the scroll position.
+1. Reload the entire grid, optionally keeping the scroll position.
 
 ```ts
 infiniteGrid.Reload(true);
 ```
 
-2. Refresh: Refreshes the currently visible cells without reloading the entire list. Note that if the length of your list data changes, you should use Reload instead.
+2. Refreshes the currently visible cells without reloading the entire list. Note that if the length of your list data changes, you should use Reload instead.
 
 ```ts
 infiniteGrid.Refresh();
-
 ```
 
 3. Scroll to a specific cell: Scroll to a specific cell index.

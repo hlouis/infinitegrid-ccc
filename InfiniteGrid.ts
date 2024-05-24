@@ -1,6 +1,11 @@
 import { Color, Component, Graphics, Mask, Node, NodePool, ScrollView, Size, UITransform, Vec2, _decorator, ccenum, size, v2 } from "cc";
 import { InfiniteCell } from "./InfiniteCell";
+import { InfiniteProxyCell } from "./InfiniteProxyCell";
 const { ccclass, property } = _decorator;
+
+function isPromiseLike<T>(it: unknown): it is PromiseLike<T> {
+    return it instanceof Promise || typeof (it as any)?.then === "function";
+}
 
 /**
  * InfiniteGrid
@@ -37,7 +42,7 @@ ccenum(EDirection);
 enum EAlign {
     FLEX_START = 1,
     CENTER,
-    FLEX_End,
+    FLEX_END,
 }
 ccenum(EAlign);
 
@@ -67,7 +72,7 @@ export interface IFDataSource {
      * 这个回调函数只会出现在已经没有可以重用的 Cell 时，List 才会向这个函数请求新的 Cell 实例
      * 所有已经请求的 Cell 实例都会被存储并重复利用，直到这个list销毁时才释放。
      */
-    GetCellView(dataIndex: number, identifier?: string): InfiniteCell;
+    GetCellView(dataIndex: number, identifier?: string): InfiniteCell | Promise<InfiniteCell>;
 
     /**
      * 根据一个 Cell 的下标获取一个 Cell 的数据，这个数据会作为 Cell 的 UpdateContent 的参数
@@ -104,9 +109,6 @@ export class InfiniteGrid extends Component {
      * @zh 网格的顶部内边距
      */
     @property({
-        visible: function (this: InfiniteGrid): boolean {
-            return this.direction === EDirection.VERTICAL;
-        },
         tooltip: "Top padding for the grid \n 网格的顶部内边距"
     })
     public paddingTop: number = 0;
@@ -116,9 +118,6 @@ export class InfiniteGrid extends Component {
      * @zh 网格的底部内边距
      */
     @property({
-        visible: function (this: InfiniteGrid): boolean {
-            return this.direction === EDirection.VERTICAL;
-        },
         tooltip: "Bottom padding for the grid \n 网格的底部内边距"
     })
     public paddingBottom: number = 0;
@@ -128,9 +127,6 @@ export class InfiniteGrid extends Component {
      * @zh 网格的左侧内边距
      */
     @property({
-        visible: function (this: InfiniteGrid): boolean {
-            return this.direction === EDirection.HORIZONTAL;
-        },
         tooltip: "Left padding for the grid \n 网格的左侧内边距"
     })
     public paddingLeft: number = 0;
@@ -140,9 +136,6 @@ export class InfiniteGrid extends Component {
      * @zh 网格的右侧内边距
      */
     @property({
-        visible: function (this: InfiniteGrid): boolean {
-            return this.direction === EDirection.HORIZONTAL;
-        },
         tooltip: "Right padding for the grid \n 网格的右侧内边距"
     })
     public paddingRight: number = 0;
@@ -504,7 +497,7 @@ export class InfiniteGrid extends Component {
         const contentSize = uiTransContent.contentSize;
         const dataLen = this._delegate.GetCellNumber();
 
-        let totalWidth = contentSize.width;
+        let totalWidth = contentSize.width - this.paddingLeft - this.paddingRight;
         let totalHeight = this.paddingTop;
 
         let curRowWidth = 0;
@@ -546,7 +539,7 @@ export class InfiniteGrid extends Component {
              */
             let isOutOfRow = (curRowWidth + cellSize.width) > totalWidth;
             if (!isOutOfRow) {
-                curRowWidth += cellSize.width + (!col ? 0 : this.spacingX);
+                curRowWidth += cellSize.width + this.spacingX;
                 curRowSizeArr.push(cellSize);
 
                 this._setGridCellSize(row, col, cellSize);
@@ -570,7 +563,7 @@ export class InfiniteGrid extends Component {
              */
             isOutOfRow = (curRowWidth + cellSize.width) > totalWidth;
 
-            curRowWidth += cellSize.width + (!col ? 0 : this.spacingX);
+            curRowWidth += cellSize.width + this.spacingX;
             curRowSizeArr.push(cellSize);
 
             this._setGridCellSize(row, col, cellSize);
@@ -586,7 +579,7 @@ export class InfiniteGrid extends Component {
             }
         }
 
-        uiTransContent.setContentSize(totalWidth, totalHeight);
+        uiTransContent.setContentSize(contentSize.width, totalHeight);
         // The size of the scrolling content Node.
         this.m_contentSize = uiTransContent.contentSize;
     }
@@ -597,7 +590,7 @@ export class InfiniteGrid extends Component {
         const dataLen = this._delegate.GetCellNumber();
 
         let totalWidth = this.paddingLeft;
-        let totalHeight = contentSize.height;
+        let totalHeight = contentSize.height - this.paddingTop - this.paddingBottom;
 
         let curColheight = 0;
         let curColSizeArr = [];
@@ -638,7 +631,7 @@ export class InfiniteGrid extends Component {
              */
             let isOutOfCol = (curColheight + cellSize.height) > totalHeight;
             if (!isOutOfCol) {
-                curColheight += cellSize.height + (!col ? 0 : this.spacingY);
+                curColheight += cellSize.height + this.spacingY;
                 curColSizeArr.push(cellSize);
 
                 this._setGridCellSize(row, col, cellSize);
@@ -662,7 +655,7 @@ export class InfiniteGrid extends Component {
              */
             isOutOfCol = (curColheight + cellSize.height) > totalHeight;
 
-            curColheight += cellSize.height + (!col ? 0 : this.spacingY);
+            curColheight += cellSize.height + this.spacingY;
             curColSizeArr.push(cellSize);
 
             this._setGridCellSize(row, col, cellSize);
@@ -678,7 +671,7 @@ export class InfiniteGrid extends Component {
             }
         }
 
-        uiTransContent.setContentSize(totalWidth, totalHeight);
+        uiTransContent.setContentSize(totalWidth, contentSize.height);
         // The size of the scrolling content Node.
         this.m_contentSize = uiTransContent.contentSize;
     }
@@ -744,14 +737,45 @@ export class InfiniteGrid extends Component {
         cell.node.removeFromParent();
     }
 
-    private _addCellView(dataIndex: number) {
-        const id = this._delegate.GetCellIdentifier(dataIndex);
-        const cellPool = this._getCellPool(id);
-        const node = cellPool && cellPool.get();
-        const cell = node && node.getComponent('InfiniteCell') as InfiniteCell || this._delegate.GetCellView(dataIndex);
+    private async _addCellView(dataIndex: number) {
+        const identifier = this._delegate.GetCellIdentifier(dataIndex);
+        const cellPool = this._getCellPool(identifier);
+
+        /**
+         * @en Get a reusable cell node from the pool based on the identifier
+         * @zh 根据标识符从池中获取一个可重用的单元节点
+         */
+        let node = cellPool && cellPool.get();
+        let cell = node && node.getComponent('InfiniteCell') as InfiniteCell;
+
+        /**
+         * @en If no cell node is available in the pool or component retrieval fails, create a new cell view
+         * @zh 如果池中没有可用的单元节点或获取组件失败，则创建新的单元视图
+         */
+        if (!cell) {
+            const ret = this._delegate.GetCellView(dataIndex);
+
+            /**
+             * @en If the return value is a Promise, create a proxy node and asynchronously await the actual cell view
+             * @zh 如果返回的是一个 Promise，则创建一个代理节点并异步等待实际的单元视图
+             */
+            if (isPromiseLike<InfiniteCell>(ret)) {
+                node = new Node('proxycell');  // Create a proxy cell node
+                cell = node.addComponent(InfiniteProxyCell); // Add the proxy cell component
+                (cell as InfiniteProxyCell).awaitCell(ret);  // Asynchronously await the actual cell view
+            }
+            /**
+             * @en Otherwise, directly use the returned cell view
+             * @zh 否则直接使用返回的单元视图
+             */
+            else {
+                cell = ret;
+            }
+        }
+
         if (!cell) return;
 
-        cell.cellIdentifier = id;
+        cell.cellIdentifier = identifier;
         cell.dataIndex = dataIndex;
 
         const pos = this._getCellPosition(dataIndex);
@@ -780,61 +804,80 @@ export class InfiniteGrid extends Component {
     }
 
     private _getCellPosition(dataIndex: number): {x: number, y: number} {
-        const row = this._getRow(dataIndex), col = this._getCol(dataIndex);
+        const row = this._getRow(dataIndex);
+        const col = this._getCol(dataIndex);
+
         if (!this._isRangeValid([row, col])) {
             return v2(0, 0);
         }
 
         const size = this.m_gridCellSize[row][col];
+
+        // Helper function to calculate the aligned Y position
+        const getAlignedPosY_ = (posY: number, curRowHeight: number): number => {
+            switch (this.align) {
+                case EAlign.FLEX_START:
+                    return posY - size.height / 2;
+                case EAlign.CENTER:
+                    return posY - (curRowHeight - size.height) / 2 - size.height / 2;
+                case EAlign.FLEX_END:
+                    return posY - (curRowHeight - size.height / 2);
+                default:
+                    return posY;
+            }
+        };
+
+        // Helper function to calculate the aligned X position
+        const getAlignedPosX_ = (posX: number, curColWidth: number): number => {
+            switch (this.align) {
+                case EAlign.FLEX_START:
+                    return posX + size.width / 2;
+                case EAlign.CENTER:
+                    return posX + (curColWidth - size.width) / 2 + size.width / 2;
+                case EAlign.FLEX_END:
+                    return posX + (curColWidth - size.width / 2);
+                default:
+                    return posX;
+            }
+        };
+
         if (this.direction === EDirection.VERTICAL) {
-            let posX = 0;
+            let posX = this.paddingLeft;
             for (let i = 0; i <= col; i ++) {
                 posX += this.m_gridCellSize[row][i].width;
             }
-            posX = posX + col * this.spacingX - size.width / 2;
+            posX = posX + (col > 0 ? col * this.spacingX : 0) - size.width / 2;
 
             let curRowOffset = this.m_gridCellOffset[row];
             let nextRowOffset = this.m_gridCellOffset[row + 1];
-            let curRowHeight = nextRowOffset ?
-                                nextRowOffset.y - curRowOffset.y - this.spacingY :
-                                this.m_contentSize.height - curRowOffset.y - this.paddingBottom;
+
+            let curRowHeight = nextRowOffset
+                ? nextRowOffset.y - curRowOffset.y - this.spacingY
+                : this.m_contentSize.height - curRowOffset.y - this.paddingBottom;
 
             let posY = -curRowOffset.y;
-            if (this.align === EAlign.FLEX_START) {
-                posY = posY - size.height / 2;
-            }
-            else if (this.align === EAlign.CENTER) {
-                posY = posY - (curRowHeight - size.height) / 2 - size.height / 2;
-            }
-            else if (this.align === EAlign.FLEX_End) {
-                posY = posY - (curRowHeight - size.height / 2);
-            }
+            posY = getAlignedPosY_(posY, curRowHeight);
+
             return { x: posX, y: posY };
         }
 
         if (this.direction === EDirection.HORIZONTAL) {
-            let posY = 0;
+            let posY = -this.paddingTop;
             for (let i = 0; i <= row; i ++) {
                 posY -= this.m_gridCellSize[i][col].height;
             }
-            posY = posY - row * this.spacingY + size.height / 2;
+            posY = posY - (row > 0 ? row * this.spacingY : 0) + size.height / 2;
 
             let curColOffset = this.m_gridCellOffset[col];
             let nexColOffset = this.m_gridCellOffset[col + 1];
-            let curColWidth = nexColOffset ?
-                                nexColOffset.x - curColOffset.x - this.spacingX :
-                                this.m_contentSize.width - curColOffset.x - this.paddingRight;
+
+            let curColWidth = nexColOffset
+                ? nexColOffset.x - curColOffset.x - this.spacingX
+                : this.m_contentSize.width - curColOffset.x - this.paddingRight;
 
             let posX = curColOffset.x;
-            if (this.align === EAlign.FLEX_START) {
-                posX = posX + size.width / 2;
-            }
-            else if (this.align === EAlign.CENTER) {
-                posX = posX + (curColWidth - size.width) / 2 + size.width /2;
-            }
-            else if (this.align === EAlign.FLEX_End) {
-                posX = posX + (curColWidth - size.width / 2);
-            }
+            posX = getAlignedPosX_(posX, curColWidth);
+
             return { x: posX, y: posY }
         }
     }
@@ -950,7 +993,6 @@ export class InfiniteGrid extends Component {
         if (this.direction === EDirection.VERTICAL && (curOffset.y < -viewSize.height || curOffset.y > contentSize.height)) {
             return true;
         }
-
         if (this.direction === EDirection.HORIZONTAL && (curOffset.x > viewSize.width || curOffset.x < -contentSize.width)) {
             return true;
         }
